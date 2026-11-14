@@ -2,6 +2,7 @@ import type { Session } from '@supabase/supabase-js'
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { db } from '../db/db'
 import { supabase } from '../lib/supabase'
+import { startSync } from '../sync/engine'
 import type { Profile } from '../types'
 
 interface AuthState {
@@ -34,7 +35,6 @@ async function loadProfile(userId: string): Promise<Profile | null> {
   const p = cached?.value as Profile | undefined
   return p && p.id === userId ? p : null
 }
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -68,6 +68,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sub.subscription.unsubscribe()
     }
   }, [])
+
+  // Start background sync once someone is signed in
+  useEffect(() => {
+    if (session) startSync()
+  }, [session])
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password })

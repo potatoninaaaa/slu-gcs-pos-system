@@ -1,33 +1,18 @@
-import Dexie, { type EntityTable } from 'dexie'
-import type {
-    ActivityLog,
-    CachedImage,
-    Category,
-    InventoryMovement,
-    KV,
-    LocalTransaction,
-    OutboxItem,
-    Product,
-} from '../types'
+const TZ = 'Asia/Manila'
 
-export const db = new Dexie('gcs-pos') as Dexie & {
-  products: EntityTable<Product, 'id'>
-  categories: EntityTable<Category, 'id'>
-  transactions: EntityTable<LocalTransaction, 'id'>
-  movements: EntityTable<InventoryMovement, 'id'>
-  logs: EntityTable<ActivityLog, 'id'>
-  outbox: EntityTable<OutboxItem, 'id'>
-  images: EntityTable<CachedImage, 'path'>
-  kv: EntityTable<KV, 'key'>
-}
+const peso = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' })
+export const formatPeso = (n: number) => peso.format(n)
 
-db.version(1).stores({
-  products: 'id, sku, name, category_id, is_archived',
-  categories: 'id, name',
-  transactions: 'id, receipt_no, created_at, status, sync_status, cashier_id',
-  movements: 'id, product_id, created_at, transaction_id, sync_status',
-  logs: 'id, created_at, action, sync_status',
-  outbox: 'id, type, created_at',
-  images: 'path',
-  kv: 'key',
+const dateTime = new Intl.DateTimeFormat('en-PH', {
+  timeZone: TZ,
+  dateStyle: 'medium',
+  timeStyle: 'short',
 })
+export const formatDateTime = (iso: string) => dateTime.format(new Date(iso))
+
+const dateOnly = new Intl.DateTimeFormat('en-PH', { timeZone: TZ, dateStyle: 'medium' })
+export const formatDate = (iso: string) => dateOnly.format(new Date(iso))
+
+// "YYYY-MM-DD" in Manila time, handy for grouping sales by day
+const dayKey = new Intl.DateTimeFormat('en-CA', { timeZone: TZ })
+export const manilaDayKey = (iso: string) => dayKey.format(new Date(iso))
