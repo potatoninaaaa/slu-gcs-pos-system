@@ -1,7 +1,10 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
+import AppLayout from './components/AppLayout'
 import { useAuth } from './hooks/useAuth'
+import Cashier from './pages/Cashier'
 import Home from './pages/Home'
 import Login from './pages/Login'
+import Products from './pages/Products'
 
 function Splash() {
   return (
@@ -18,7 +21,11 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={session ? <Navigate to="/" replace /> : <Login />} />
-      <Route path="/" element={session ? <Home /> : <Navigate to="/login" replace />} />
+      <Route element={session ? <AppLayout /> : <Navigate to="/login" replace />}>
+        <Route path="/" element={<Cashier />} />
+        <Route path="/products" element={<Products />} />
+        <Route path="/status" element={<Home />} />
+      </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
