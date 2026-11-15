@@ -4,17 +4,18 @@ import type { LocalTransaction } from '../types'
 interface Props {
   tx: LocalTransaction
   onClose: () => void
+  closeLabel?: string
 }
 
-export default function Receipt({ tx, onClose }: Props) {
+export default function Receipt({ tx, onClose, closeLabel = 'New sale' }: Props) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto bg-black/60 p-4">
       <div className="w-full max-w-sm rounded-xl bg-white p-4 text-slate-900 shadow-xl">
         <div className="print-area bg-white p-2 font-mono text-sm">
           <div className="text-center">
             <p className="text-base font-bold">Green Core Society</p>
             <p>Saint Louis University</p>
-            <p className="mt-1">Official Receipt</p>
+            <p className="mt-1">{tx.status === 'cancelled' ? 'CANCELLED SALE' : 'Official Receipt'}</p>
           </div>
           <div className="my-2 border-t border-dashed border-slate-400" />
           <p>Receipt: {tx.receipt_no}</p>
@@ -49,7 +50,9 @@ export default function Receipt({ tx, onClose }: Props) {
         </div>
 
         <p className="mt-3 text-center text-xs text-slate-500">
-          Saved on this device. It uploads to the cloud automatically when online.
+          {tx.sync_status === 'synced'
+            ? 'Synced to the cloud.'
+            : 'Saved on this device. It uploads to the cloud automatically when online.'}
         </p>
         <div className="mt-3 flex gap-2">
           <button
@@ -62,7 +65,7 @@ export default function Receipt({ tx, onClose }: Props) {
             onClick={onClose}
             className="flex-1 rounded-lg bg-gold py-2.5 font-semibold text-slate-deep"
           >
-            New sale
+            {closeLabel}
           </button>
         </div>
       </div>

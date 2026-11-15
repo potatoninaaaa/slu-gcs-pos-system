@@ -1,7 +1,9 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import AppLayout from './components/AppLayout'
 import { useAuth } from './hooks/useAuth'
+import Activity from './pages/Activity'
 import Cashier from './pages/Cashier'
+import History from './pages/History'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import Products from './pages/Products'
@@ -23,7 +25,9 @@ export default function App() {
       <Route path="/login" element={session ? <Navigate to="/" replace /> : <Login />} />
       <Route element={session ? <AppLayout /> : <Navigate to="/login" replace />}>
         <Route path="/" element={<Cashier />} />
+        <Route path="/history" element={<History />} />
         <Route path="/products" element={<Products />} />
+        <Route path="/activity" element={<Activity />} />
         <Route path="/status" element={<Home />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

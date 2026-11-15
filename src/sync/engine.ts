@@ -1,6 +1,13 @@
 import { db } from '../db/db'
+import { logActivity } from '../lib/activity'
 import { supabase } from '../lib/supabase'
-import type { LocalTransaction, OutboxItem } from '../types'
+import type {
+  ActivityLog,
+  InventoryMovement,
+  LocalTransaction,
+  OutboxItem,
+  SaleItem,
+} from '../types'
 import { cacheProductImages } from './images'
 
 export interface SyncState {
@@ -25,8 +32,109 @@ export function subscribeSync(fn: (s: SyncState) => void) {
   }
 }
 
+let currentUserId = ''
+let lastHistoryPull = 0
+const HISTORY_EVERY_MS = 120_000
+
+interface TxRow {
+  id: string
+  receipt_no: string
+  cashier_id: string | null
+  status: 'completed' | 'cancelled'
+  total_amount: number | string
+  cash_received: number | string
+  change_given: number | string
+  created_at: string
+}
+interface ItemRow {
+  transaction_id: string
+  product_id: string
+  product_name: string
+  sku: string
+  unit_price: number | string
+  quantity: number
+  line_total: number | string
+}
+
+async function fetchAll<T>(table: string): Promise<T[]> {
+  const out: T[] = []
+  const size = 1000
+  for (let from = 0; ; from += size) {
+    const { data, error } = await supabase
+      .from(table)
+      .select('*')
+      .order('id')
+      .range(from, from + size - 1)
+    if (error) throw error
+    out.push(...((data ?? []) as T[]))
+    if (!data || data.length < size) break
+  }
+  return out
+}
+
 // ---------- Pull: server -> local ----------
-async function pullAll() {
+async function pullHistory() {
+  const [txs, items, moves, logs] = await Promise.all([
+    fetchAll<TxRow>('transactions'),
+    fetchAll<ItemRow>('transaction_items'),
+    fetchAll<Omit<InventoryMovement, 'sync_status'>>('inventory_movements'),
+    fetchAll<Omit<ActivityLog, 'sync_status'>>('activity_logs'),
+  ])
+
+  const itemsByTx = new Map<string, SaleItem[]>()
+  for (const i of items) {
+    const list = itemsByTx.get(i.transaction_id) ?? []
+    list.push({
+      product_id: i.product_id,
+      product_name: i.product_name,
+      sku: i.sku,
+      unit_price: Number(i.unit_price),
+      quantity: i.quantity,
+      line_total: Number(i.line_total),
+    })
+    itemsByTx.set(i.transaction_id, list)
+  }
+
+  await db.transaction('rw', db.transactions, db.movements, db.logs, async () => {
+    // Never overwrite something on this device that has not reached the server yet
+    const localTx = new Map((await db.transactions.toArray()).map((t) => [t.id, t]))
+    const txRows: LocalTransaction[] = []
+    for (const t of txs) {
+      const l = localTx.get(t.id)
+      if (l && l.sync_status !== 'synced') continue
+      txRows.push({
+        id: t.id,
+        receipt_no: t.receipt_no,
+        cashier_id: t.cashier_id,
+        status: t.status,
+        total_amount: Number(t.total_amount),
+        cash_received: Number(t.cash_received),
+        change_given: Number(t.change_given),
+        created_at: t.created_at,
+        items: itemsByTx.get(t.id) ?? [],
+        sync_status: 'synced',
+      })
+    }
+    await db.transactions.bulkPut(txRows)
+
+    const localMoves = new Map((await db.movements.toArray()).map((m) => [m.id, m]))
+    await db.movements.bulkPut(
+      moves
+        .filter((m) => localMoves.get(m.id)?.sync_status !== 'pending')
+        .map((m) => ({ ...m, sync_status: 'synced' as const })),
+    )
+
+    const localLogs = new Map((await db.logs.toArray()).map((l) => [l.id, l]))
+    await db.logs.bulkPut(
+      logs
+        .filter((l) => localLogs.get(l.id)?.sync_status !== 'pending')
+        .map((l) => ({ ...l, sync_status: 'synced' as const })),
+    )
+  })
+  lastHistoryPull = Date.now()
+}
+
+async function pullAll(includeHistory: boolean) {
   const [cats, prods] = await Promise.all([
     supabase.from('categories').select('*'),
     supabase.from('products').select('*'),
@@ -34,7 +142,7 @@ async function pullAll() {
   if (cats.error) throw cats.error
   if (prods.error) throw prods.error
 
-  // Never overwrite a product whose stock is being changed by an unsent sale
+  // Never overwrite a product whose stock is being changed by an unsent sale or adjustment
   const pendingSales = await db.outbox.where('type').equals('sale').toArray()
   const pendingAdjust = await db.outbox.where('type').equals('stock_adjust').toArray()
   const hasPendingStock = pendingSales.length + pendingAdjust.length > 0
@@ -47,7 +155,6 @@ async function pullAll() {
       await db.products.clear()
       await db.products.bulkPut(prods.data)
     } else {
-      // Keep local stock numbers (they include unsent sales); refresh everything else
       const local = new Map((await db.products.toArray()).map((p) => [p.id, p]))
       const merged = prods.data.map((p) => {
         const l = local.get(p.id)
@@ -58,7 +165,11 @@ async function pullAll() {
     }
   })
 
+  const prof = await supabase.from('profiles').select('id, email, full_name, role')
+  if (!prof.error) await db.kv.put({ key: 'profiles', value: prof.data })
+
   await cacheProductImages()
+  if (includeHistory) await pullHistory()
   await db.kv.put({ key: 'last_pull', value: new Date().toISOString() })
 }
 
@@ -67,7 +178,7 @@ async function pushItem(item: OutboxItem): Promise<void> {
   switch (item.type) {
     case 'sale': {
       const t = item.payload as LocalTransaction
-      const { data, error } = await supabase.rpc('process_sale', {
+      const { error } = await supabase.rpc('process_sale', {
         p_id: t.id,
         p_receipt_no: t.receipt_no,
         p_created_at: t.created_at,
@@ -81,7 +192,6 @@ async function pushItem(item: OutboxItem): Promise<void> {
       })
       if (error) throw error
       // 'created' and 'duplicate' both mean the server has this sale
-      void data
       await db.transactions.update(t.id, { sync_status: 'synced', sync_error: undefined })
       return
     }
@@ -131,8 +241,18 @@ async function pushItem(item: OutboxItem): Promise<void> {
       const l = item.payload as { id: string }
       const { error } = await supabase
         .from('activity_logs')
-        .upsert(item.payload as Record<string, unknown>, { onConflict: 'id' })
-      if (error) throw error
+        .insert(item.payload as Record<string, unknown>)
+      if (error) {
+        if (error.code === '23505') {
+          // already on the server
+        } else if (error.code === '42501') {
+          // belongs to a different signed-in user; cannot be uploaded from this session
+          await db.logs.update(l.id, { sync_status: 'error' })
+          return
+        } else {
+          throw error
+        }
+      }
       await db.logs.update(l.id, { sync_status: 'synced' })
       return
     }
@@ -150,13 +270,16 @@ function isNetworkError(err: unknown): boolean {
   )
 }
 
-async function pushAll() {
+// Returns how many sales/stock changes were uploaded
+async function pushAll(): Promise<number> {
   // Oldest first, so stock changes replay in the order they happened
   const items = await db.outbox.orderBy('created_at').toArray()
+  let pushed = 0
   for (const item of items) {
     try {
       await pushItem(item)
       await db.outbox.delete(item.id)
+      if (item.type !== 'activity_log') pushed += 1
     } catch (err) {
       if (isNetworkError(err)) throw err // connection dropped: stop and retry later
       // Server rejected this item. Keep it (never discard a sale) and move on.
@@ -171,6 +294,7 @@ async function pushAll() {
       }
     }
   }
+  return pushed
 }
 
 // ---------- Orchestration ----------
@@ -178,11 +302,16 @@ export async function syncNow(): Promise<void> {
   if (state.running || !navigator.onLine) return
   const { data } = await supabase.auth.getSession()
   if (!data.session) return
+  currentUserId = data.session.user.id
 
   setState({ running: true, lastError: null })
   try {
-    await pushAll()
-    await pullAll()
+    const pushed = await pushAll()
+    if (pushed > 0) {
+      await logActivity(currentUserId, 'sync_completed', 'sync', null, { uploaded: pushed })
+    }
+    const includeHistory = pushed > 0 || Date.now() - lastHistoryPull > HISTORY_EVERY_MS
+    await pullAll(includeHistory)
     setState({ lastSyncAt: new Date().toISOString() })
   } catch (err) {
     setState({ lastError: String((err as { message?: string })?.message ?? err) })

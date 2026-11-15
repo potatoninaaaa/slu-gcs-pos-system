@@ -19,10 +19,18 @@ export default function AppLayout() {
             <NavLink to="/" end className={link}>
               Cashier
             </NavLink>
+            <NavLink to="/history" className={link}>
+              History
+            </NavLink>
             {profile?.role === 'admin' && (
-              <NavLink to="/products" className={link}>
-                Products
-              </NavLink>
+              <>
+                <NavLink to="/products" className={link}>
+                  Products
+                </NavLink>
+                <NavLink to="/activity" className={link}>
+                  Activity
+                </NavLink>
+              </>
             )}
             <NavLink to="/status" className={link}>
               Status

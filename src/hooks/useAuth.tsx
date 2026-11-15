@@ -1,6 +1,7 @@
 import type { Session } from '@supabase/supabase-js'
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { db } from '../db/db'
+import { logActivity } from '../lib/activity'
 import { supabase } from '../lib/supabase'
 import { startSync } from '../sync/engine'
 import type { Profile } from '../types'
@@ -75,7 +76,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [session])
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    if (!error && data.user) {
+      void logActivity(data.user.id, 'user_signed_in', 'user', data.user.id, { email: data.user.email })
+    }
     return error ? error.message : null
   }
 

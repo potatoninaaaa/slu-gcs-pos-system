@@ -1,228 +1,351 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useEffect, useState, type FormEvent } from 'react'
+import { useMemo, useState } from 'react'
+import ProductFormModal from '../components/ProductFormModal'
 import ProductImage from '../components/ProductImage'
+import StockModal from '../components/StockModal'
 import { db } from '../db/db'
 import { useAuth } from '../hooks/useAuth'
 import { useOnline } from '../hooks/useOnline'
-import { formatPeso } from '../lib/format'
-import { newId } from '../lib/id'
-import { resizeImage } from '../lib/image'
+import { logActivity } from '../lib/activity'
+import { formatDate, formatPeso } from '../lib/format'
+import { putProductKeepingStock } from '../lib/inventory'
 import { supabase } from '../lib/supabase'
-import type { Product } from '../types'
+import { inputCls } from '../lib/ui'
+import { syncNow } from '../sync/engine'
+import type { Category, Product } from '../types'
 
-const input =
-  'w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white outline-none focus:border-gold'
+type StatusFilter = 'all' | 'in' | 'low' | 'out' | 'unavailable' | 'archived'
+type SortKey = 'name' | 'price' | 'stock' | 'created'
+
+function statusOf(p: Product) {
+  if (p.is_archived) return { text: 'Archived', cls: 'bg-slate-600 text-slate-200' }
+  if (!p.is_available) return { text: 'Unavailable', cls: 'bg-slate-600 text-slate-200' }
+  if (p.stock_qty <= 0) return { text: 'Out of stock', cls: 'bg-red-500/90 text-white' }
+  if (p.stock_qty <= p.low_stock_threshold) return { text: 'Low stock', cls: 'bg-gold text-slate-deep' }
+  return { text: 'In stock', cls: 'bg-emerald-600 text-white' }
+}
+
+const btn = 'rounded-lg bg-slate-700 px-2.5 py-1 text-xs font-semibold hover:bg-slate-600'
 
 export default function Products() {
   const { profile, session } = useAuth()
   const online = useOnline()
-  const categories = useLiveQuery(() => db.categories.orderBy('name').toArray(), [], [])
-  const products = useLiveQuery(() => db.products.orderBy('name').toArray(), [], [] as Product[])
+  const userId = session?.user.id ?? ''
+  const products = useLiveQuery(() => db.products.toArray(), [], [] as Product[])
+  const categories = useLiveQuery(() => db.categories.orderBy('name').toArray(), [], [] as Category[])
 
-  const [name, setName] = useState('')
-  const [sku, setSku] = useState('')
-  const [categoryId, setCategoryId] = useState('')
-  const [price, setPrice] = useState('')
-  const [stock, setStock] = useState('0')
-  const [low, setLow] = useState('5')
-  const [description, setDescription] = useState('')
-  const [file, setFile] = useState<File | null>(null)
-  const [preview, setPreview] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [view, setView] = useState<'grid' | 'table'>('grid')
+  const [search, setSearch] = useState('')
+  const [categoryId, setCategoryId] = useState('all')
+  const [status, setStatus] = useState<StatusFilter>('all')
+  const [minPrice, setMinPrice] = useState('')
+  const [maxPrice, setMaxPrice] = useState('')
+  const [sortKey, setSortKey] = useState<SortKey>('name')
+  const [asc, setAsc] = useState(true)
+  const [editing, setEditing] = useState<Product | 'new' | null>(null)
+  const [stockFor, setStockFor] = useState<Product | null>(null)
+  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null)
 
-  useEffect(() => {
-    if (!file) {
-      setPreview(null)
-      return undefined
-    }
-    const url = URL.createObjectURL(file)
-    setPreview(url)
-    return () => URL.revokeObjectURL(url)
-  }, [file])
+  const catName = (id: string | null) => categories.find((c) => c.id === id)?.name ?? 'Uncategorized'
+
+  const rows = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    const min = minPrice === '' ? null : Number(minPrice)
+    const max = maxPrice === '' ? null : Number(maxPrice)
+    const list = products.filter((p) => {
+      if (q && !p.name.toLowerCase().includes(q) && !p.sku.toLowerCase().includes(q)) return false
+      if (categoryId !== 'all' && p.category_id !== categoryId) return false
+      const price = Number(p.price)
+      if (min !== null && price < min) return false
+      if (max !== null && price > max) return false
+      switch (status) {
+        case 'archived':
+          return p.is_archived
+        case 'all':
+          return !p.is_archived
+        case 'unavailable':
+          return !p.is_archived && !p.is_available
+        case 'out':
+          return !p.is_archived && p.stock_qty <= 0
+        case 'low':
+          return !p.is_archived && p.stock_qty > 0 && p.stock_qty <= p.low_stock_threshold
+        case 'in':
+          return !p.is_archived && p.stock_qty > p.low_stock_threshold
+        default:
+          return true
+      }
+    })
+    const dir = asc ? 1 : -1
+    list.sort((a, b) => {
+      let c = 0
+      if (sortKey === 'name') c = a.name.localeCompare(b.name)
+      else if (sortKey === 'price') c = Number(a.price) - Number(b.price)
+      else if (sortKey === 'stock') c = a.stock_qty - b.stock_qty
+      else c = a.created_at.localeCompare(b.created_at)
+      return c * dir
+    })
+    return list
+  }, [products, search, categoryId, status, minPrice, maxPrice, sortKey, asc])
+
+  const inventoryValue = products
+    .filter((p) => !p.is_archived)
+    .reduce((s, p) => s + Number(p.price) * p.stock_qty, 0)
 
   if (profile?.role !== 'admin') {
     return <p className="p-6 text-center text-slate-400">Only administrators can manage products.</p>
   }
 
-  const onSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    setMsg(null)
-    if (!online) {
-      setMsg({ ok: false, text: 'Adding a product needs an internet connection.' })
-      return
-    }
-    const priceNum = Number(price)
-    const stockNum = Number(stock)
-    const lowNum = Number(low)
-    if (!name.trim() || !sku.trim()) return setMsg({ ok: false, text: 'Name and SKU are required.' })
-    if (!(priceNum >= 0) || price === '') return setMsg({ ok: false, text: 'Enter a valid price.' })
-    if (!Number.isInteger(stockNum) || stockNum < 0)
-      return setMsg({ ok: false, text: 'Stock must be a whole number, 0 or more.' })
-    if (!Number.isInteger(lowNum) || lowNum < 0)
-      return setMsg({ ok: false, text: 'Low-stock threshold must be a whole number.' })
+  const flash = (ok: boolean, text: string) => setNotice({ ok, text })
 
-    setBusy(true)
-    let imagePath: string | null = null
-    let blob: Blob | null = null
-    try {
-      if (file) {
-        blob = await resizeImage(file)
-        imagePath = `${newId()}.jpg`
-        const up = await supabase.storage
-          .from('product-images')
-          .upload(imagePath, blob, { contentType: 'image/jpeg' })
-        if (up.error) throw up.error
-      }
-
-      const { data, error } = await supabase
-        .from('products')
-        .insert({
-          name: name.trim(),
-          sku: sku.trim(),
-          description: description.trim() || null,
-          category_id: categoryId || null,
-          price: priceNum,
-          stock_qty: stockNum,
-          low_stock_threshold: lowNum,
-          image_path: imagePath,
-          created_by: session?.user.id,
-        })
-        .select()
-        .single()
-
-      if (error) {
-        if (imagePath) await supabase.storage.from('product-images').remove([imagePath])
-        throw error
-      }
-
-      // Show it immediately on this device; the next sync confirms it
-      await db.products.put(data as Product)
-      if (imagePath && blob) {
-        await db.images.put({ path: imagePath, blob, cached_at: new Date().toISOString() })
-      }
-
-      setName('')
-      setSku('')
-      setPrice('')
-      setStock('0')
-      setDescription('')
-      setFile(null)
-      setMsg({ ok: true, text: 'Product added.' })
-    } catch (err) {
-      const e2 = err as { code?: string; message?: string }
-      setMsg({
-        ok: false,
-        text: e2.code === '23505' ? 'That SKU is already used.' : (e2.message ?? 'Could not add the product.'),
-      })
-    } finally {
-      setBusy(false)
-    }
+  const toggleArchive = async (p: Product) => {
+    if (!online) return flash(false, 'Archiving needs an internet connection.')
+    const archive = !p.is_archived
+    if (archive && !window.confirm(`Archive "${p.name}"? It will be hidden from the cashier.`)) return
+    const { data, error } = await supabase
+      .from('products')
+      .update({ is_archived: archive })
+      .eq('id', p.id)
+      .select()
+      .single()
+    if (error) return flash(false, error.message)
+    await putProductKeepingStock(data as Product)
+    await logActivity(userId, archive ? 'product_archived' : 'product_restored', 'product', p.id, {
+      name: p.name,
+      sku: p.sku,
+    })
+    void syncNow()
+    flash(true, archive ? `${p.name} archived.` : `${p.name} restored.`)
   }
 
-  return (
-    <div className="mx-auto grid max-w-7xl gap-4 p-3 lg:grid-cols-[380px_1fr]">
-      <form onSubmit={onSubmit} className="h-fit space-y-3 rounded-xl bg-slate-800 p-4">
-        <h2 className="text-lg font-bold text-gold">Add product</h2>
+  const remove = async (p: Product) => {
+    if (!online) return flash(false, 'Deleting needs an internet connection.')
+    if (!window.confirm(`Permanently delete "${p.name}"? This cannot be undone.`)) return
+    const { error } = await supabase.from('products').delete().eq('id', p.id)
+    if (error) {
+      return flash(
+        false,
+        error.code === '23503'
+          ? `${p.name} has stock or sales history and cannot be deleted. Archive it instead.`
+          : error.message,
+      )
+    }
+    await db.products.delete(p.id)
+    if (p.image_path) await supabase.storage.from('product-images').remove([p.image_path])
+    await logActivity(userId, 'product_deleted', 'product', p.id, { name: p.name, sku: p.sku })
+    void syncNow()
+    flash(true, `${p.name} deleted.`)
+  }
 
+  const actions = (p: Product) => (
+    <div className="flex flex-wrap gap-1.5">
+      <button className={btn} onClick={() => setEditing(p)}>
+        Edit
+      </button>
+      <button className={btn} onClick={() => setStockFor(p)}>
+        Stock
+      </button>
+      <button className={btn} onClick={() => void toggleArchive(p)}>
+        {p.is_archived ? 'Restore' : 'Archive'}
+      </button>
+      <button className={`${btn} text-red-300`} onClick={() => void remove(p)}>
+        Delete
+      </button>
+    </div>
+  )
+
+  return (
+    <div className="mx-auto max-w-7xl p-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <label className="mb-1 block text-sm text-slate-300">Photo (camera or gallery)</label>
-          {preview && (
-            <img src={preview} alt="Preview" className="mb-2 h-32 w-32 rounded-lg object-cover" />
-          )}
+          <h1 className="text-xl font-bold text-gold">Products</h1>
+          <p className="text-sm text-slate-400">
+            {rows.length} shown, inventory value {formatPeso(inventoryValue)}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <div className="flex overflow-hidden rounded-lg border border-slate-700">
+            {(['grid', 'table'] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={`px-3 py-1.5 text-sm capitalize ${
+                  view === v ? 'bg-gold text-slate-deep' : 'bg-slate-800 text-slate-300'
+                }`}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => setEditing('new')}
+            className="rounded-lg bg-gold px-4 py-1.5 text-sm font-bold text-slate-deep"
+          >
+            Add product
+          </button>
+        </div>
+      </div>
+
+      {notice && (
+        <p
+          className={`mb-3 rounded-lg px-3 py-2 text-sm ${
+            notice.ok ? 'bg-emerald-900/60 text-emerald-300' : 'bg-red-900/50 text-red-200'
+          }`}
+        >
+          {notice.text}
+        </p>
+      )}
+
+      <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
+        <input
+          className={`${inputCls} lg:col-span-2`}
+          placeholder="Search by name or SKU"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <select className={inputCls} value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+          <option value="all">All categories</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+        <select className={inputCls} value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)}>
+          <option value="all">All active</option>
+          <option value="in">In stock</option>
+          <option value="low">Low stock</option>
+          <option value="out">Out of stock</option>
+          <option value="unavailable">Unavailable</option>
+          <option value="archived">Archived</option>
+        </select>
+        <div className="flex gap-2">
           <input
-            type="file"
-            accept="image/*"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            className="block w-full text-sm text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-gold file:px-3 file:py-2 file:font-semibold file:text-slate-deep"
+            className={inputCls}
+            inputMode="decimal"
+            placeholder="Min ₱"
+            value={minPrice}
+            onChange={(e) => setMinPrice(e.target.value.replace(/[^0-9.]/g, ''))}
+          />
+          <input
+            className={inputCls}
+            inputMode="decimal"
+            placeholder="Max ₱"
+            value={maxPrice}
+            onChange={(e) => setMaxPrice(e.target.value.replace(/[^0-9.]/g, ''))}
           />
         </div>
-
-        <div>
-          <label className="mb-1 block text-sm text-slate-300">Name</label>
-          <input className={input} value={name} onChange={(e) => setName(e.target.value)} required />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm text-slate-300">SKU / product code</label>
-          <input className={input} value={sku} onChange={(e) => setSku(e.target.value)} required />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm text-slate-300">Category</label>
-          <select className={input} value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-            <option value="">No category</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
+        <div className="flex gap-2">
+          <select className={inputCls} value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)}>
+            <option value="name">Sort: Name</option>
+            <option value="price">Sort: Price</option>
+            <option value="stock">Sort: Stock</option>
+            <option value="created">Sort: Date added</option>
           </select>
+          <button
+            onClick={() => setAsc((a) => !a)}
+            className="rounded-lg border border-slate-700 bg-slate-800 px-3 text-sm"
+            aria-label="Toggle sort direction"
+          >
+            {asc ? 'A→Z' : 'Z→A'}
+          </button>
         </div>
-        <div className="grid grid-cols-3 gap-2">
-          <div>
-            <label className="mb-1 block text-sm text-slate-300">Price</label>
-            <input className={input} inputMode="decimal" value={price}
-              onChange={(e) => setPrice(e.target.value.replace(/[^0-9.]/g, ''))} required />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm text-slate-300">Stock</label>
-            <input className={input} inputMode="numeric" value={stock}
-              onChange={(e) => setStock(e.target.value.replace(/\D/g, ''))} required />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm text-slate-300">Low at</label>
-            <input className={input} inputMode="numeric" value={low}
-              onChange={(e) => setLow(e.target.value.replace(/\D/g, ''))} required />
-          </div>
-        </div>
-        <div>
-          <label className="mb-1 block text-sm text-slate-300">Description (optional)</label>
-          <textarea className={input} rows={2} value={description}
-            onChange={(e) => setDescription(e.target.value)} />
-        </div>
+      </div>
 
-        {msg && (
-          <p className={`rounded-lg px-3 py-2 text-sm ${msg.ok ? 'bg-emerald-900/60 text-emerald-300' : 'bg-red-900/50 text-red-200'}`}>
-            {msg.text}
-          </p>
-        )}
-        <button
-          type="submit"
-          disabled={busy}
-          className="w-full rounded-lg bg-gold py-2.5 font-bold text-slate-deep disabled:opacity-50"
-        >
-          {busy ? 'Saving...' : 'Add product'}
-        </button>
-      </form>
-
-      <section className="rounded-xl bg-slate-800 p-4">
-        <h2 className="mb-3 text-lg font-bold text-gold">Products on this device ({products.length})</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+      {rows.length === 0 ? (
+        <p className="rounded-xl bg-slate-800 p-6 text-center text-slate-400">No products match.</p>
+      ) : view === 'grid' ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {rows.map((p) => {
+            const st = statusOf(p)
+            return (
+              <div key={p.id} className="overflow-hidden rounded-xl bg-slate-800">
+                <div className="relative">
+                  <ProductImage path={p.image_path} name={p.name} className="h-40 w-full" />
+                  <span className={`absolute left-2 top-2 rounded-full px-2 py-0.5 text-[11px] font-semibold ${st.cls}`}>
+                    {st.text}
+                  </span>
+                </div>
+                <div className="space-y-1 p-3">
+                  <p className="font-medium leading-tight">{p.name}</p>
+                  <p className="text-xs text-slate-400">
+                    {catName(p.category_id)} · {p.sku}
+                  </p>
+                  <p className="flex items-center justify-between">
+                    <span className="font-bold text-gold">{formatPeso(Number(p.price))}</span>
+                    <span className="text-sm text-slate-300">Stock: {p.stock_qty}</span>
+                  </p>
+                  <div className="pt-1">{actions(p)}</div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-xl bg-slate-800 p-3">
+          <table className="w-full min-w-[900px] text-left text-sm">
             <thead className="text-slate-400">
               <tr>
                 <th className="py-2 pr-2"></th>
                 <th className="py-2 pr-2">Name</th>
                 <th className="py-2 pr-2">SKU</th>
+                <th className="py-2 pr-2">Category</th>
                 <th className="py-2 pr-2">Price</th>
-                <th className="py-2">Stock</th>
+                <th className="py-2 pr-2">Stock</th>
+                <th className="py-2 pr-2">Status</th>
+                <th className="py-2 pr-2">Added</th>
+                <th className="py-2 pr-2">Updated</th>
+                <th className="py-2">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {products.map((p) => (
-                <tr key={p.id} className="border-t border-slate-700">
-                  <td className="py-2 pr-2">
-                    <ProductImage path={p.image_path} name={p.name} className="h-10 w-10 rounded-lg" />
-                  </td>
-                  <td className="py-2 pr-2">{p.name}</td>
-                  <td className="py-2 pr-2 text-slate-400">{p.sku}</td>
-                  <td className="py-2 pr-2">{formatPeso(Number(p.price))}</td>
-                  <td className="py-2">{p.stock_qty}</td>
-                </tr>
-              ))}
+              {rows.map((p) => {
+                const st = statusOf(p)
+                return (
+                  <tr key={p.id} className="border-t border-slate-700 align-middle">
+                    <td className="py-2 pr-2">
+                      <ProductImage path={p.image_path} name={p.name} className="h-10 w-10 rounded-lg" />
+                    </td>
+                    <td className="py-2 pr-2 font-medium">{p.name}</td>
+                    <td className="py-2 pr-2 text-slate-400">{p.sku}</td>
+                    <td className="py-2 pr-2">{catName(p.category_id)}</td>
+                    <td className="py-2 pr-2">{formatPeso(Number(p.price))}</td>
+                    <td className="py-2 pr-2">
+                      {p.stock_qty} <span className="text-xs text-slate-500">(low at {p.low_stock_threshold})</span>
+                    </td>
+                    <td className="py-2 pr-2">
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${st.cls}`}>{st.text}</span>
+                    </td>
+                    <td className="py-2 pr-2 text-slate-400">{formatDate(p.created_at)}</td>
+                    <td className="py-2 pr-2 text-slate-400">{formatDate(p.updated_at)}</td>
+                    <td className="py-2">{actions(p)}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
-      </section>
+      )}
+
+      {editing && (
+        <ProductFormModal
+          product={editing === 'new' ? null : editing}
+          onClose={() => setEditing(null)}
+          onSaved={(text) => {
+            setEditing(null)
+            flash(true, text)
+          }}
+        />
+      )}
+      {stockFor && (
+        <StockModal
+          product={stockFor}
+          onClose={() => setStockFor(null)}
+          onDone={(text) => {
+            setStockFor(null)
+            flash(true, text)
+          }}
+        />
+      )}
     </div>
   )
 }
