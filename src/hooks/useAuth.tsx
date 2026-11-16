@@ -16,6 +16,38 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState | null>(null)
 
+const isAuthKey = (k: string | null): k is string =>
+  !!k && k.startsWith('sb-') && k.endsWith('-auth-token')
+
+// The login Supabase saved in the browser. It may be expired, which is fine for
+// working offline: Supabase refreshes it automatically once the internet is back.
+function storedSession(): Session | null {
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (!isAuthKey(k)) continue
+      const s = JSON.parse(localStorage.getItem(k) ?? 'null')
+      if (s?.user?.id && s.access_token) return s as Session
+    }
+  } catch {
+    // ignore unreadable storage
+  }
+  return null
+}
+
+function clearStoredSession() {
+  try {
+    const keys: string[] = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (isAuthKey(k)) keys.push(k)
+    }
+    keys.forEach((k) => localStorage.removeItem(k))
+  } catch {
+    // ignore
+  }
+}
+
 // Loads the role from Supabase when online, and falls back to the cached copy offline.
 async function loadProfile(userId: string): Promise<Profile | null> {
   if (navigator.onLine) {
@@ -36,6 +68,7 @@ async function loadProfile(userId: string): Promise<Profile | null> {
   const p = cached?.value as Profile | undefined
   return p && p.id === userId ? p : null
 }
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -44,20 +77,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false
 
-    // getSession reads the saved session from the browser, so it works offline
-    supabase.auth.getSession().then(async ({ data }) => {
+    void (async () => {
+      let s: Session | null = null
+      try {
+        s = (await supabase.auth.getSession()).data.session
+      } catch {
+        s = null
+      }
+      // Offline with an expired login: keep working with the saved one
+      s = s ?? storedSession()
       if (cancelled) return
-      setSession(data.session)
-      if (data.session) setProfile(await loadProfile(data.session.user.id))
+      setSession(s)
+      if (s) setProfile(await loadProfile(s.user.id))
       if (!cancelled) setLoading(false)
-    })
+    })()
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setSession(newSession)
+    const { data: sub } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (!newSession) {
-        setProfile(null)
+        // Only an explicit sign-out ends the session. A failed refresh must not.
+        if (event === 'SIGNED_OUT') {
+          setSession(null)
+          setProfile(null)
+        }
         return
       }
+      setSession(newSession)
       // deferred so we never call Supabase from inside its own auth callback
       setTimeout(async () => {
         setProfile(await loadProfile(newSession.user.id))
@@ -86,8 +130,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Local sign-out only. We NEVER wipe the local database, because it may
   // hold sales that have not synced yet.
   const signOut = async () => {
-    await supabase.auth.signOut({ scope: 'local' })
+    const waiting = await db.outbox.count()
+    if (
+      waiting > 0 &&
+      !window.confirm(
+        `${waiting} change(s) have not uploaded yet. Sign out anyway? They stay on this device and upload after the next sign-in.`,
+      )
+    ) {
+      return
+    }
+    try {
+      await supabase.auth.signOut({ scope: 'local' })
+    } catch {
+      // offline: clear it ourselves below
+    }
+    clearStoredSession()
     await db.kv.delete('profile')
+    setSession(null)
+    setProfile(null)
   }
 
   return (

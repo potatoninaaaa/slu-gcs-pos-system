@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import AppLayout from './components/AppLayout'
+import UpdatePrompt from './components/UpdatePrompt'
 import { useAuth } from './hooks/useAuth'
 import Activity from './pages/Activity'
 import Cashier from './pages/Cashier'
@@ -23,18 +24,21 @@ export default function App() {
   if (loading) return <Splash />
 
   return (
-    <Routes>
-      <Route path="/login" element={session ? <Navigate to="/" replace /> : <Login />} />
-      <Route element={session ? <AppLayout /> : <Navigate to="/login" replace />}>
-        <Route path="/" element={<Cashier />} />
-        <Route path="/history" element={<History />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/products" element={<Products />} />
-        <Route path="/activity" element={<Activity />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="/status" element={<Home />} />
-      </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <>
+      <Routes>
+        <Route path="/login" element={session ? <Navigate to="/" replace /> : <Login />} />
+        <Route element={session ? <AppLayout /> : <Navigate to="/login" replace />}>
+          <Route path="/" element={<Cashier />} />
+          <Route path="/history" element={<History />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/products" element={<Products />} />
+          <Route path="/activity" element={<Activity />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/status" element={<Home />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      <UpdatePrompt />
+    </>
   )
 }
