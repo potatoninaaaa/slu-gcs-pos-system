@@ -18,7 +18,7 @@ export default function AppLayout() {
         <div className="mx-auto flex max-w-7xl items-center gap-3 px-3 py-2">
           <div className="hidden items-center gap-2 md:flex">
             <LogoRow className="h-7" />
-            <span className="font-bold text-gold">GCS POS</span>
+            <span className="font-bold text-gold">Green Core Society POS System</span>
           </div>
           <nav className="flex flex-1 gap-1 overflow-x-auto">
             <NavLink to="/" end className={link}>

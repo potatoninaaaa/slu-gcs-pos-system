@@ -1,11 +1,12 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo, useState } from 'react'
 import DateFilter from '../components/DateFilter'
+import ExportButtons from '../components/ExportButtons'
 import { db } from '../db/db'
 import { useAuth } from '../hooks/useAuth'
 import { useProfileNames } from '../hooks/useProfiles'
-import { downloadCsv } from '../lib/csv'
 import { inRange, resolveRange, type DateFilterValue } from '../lib/dates'
+import type { TableDoc } from '../lib/exporter'
 import { formatDateTime, manilaDayKey } from '../lib/format'
 import { inputCls } from '../lib/ui'
 import type { ActivityLog, InventoryMovement, Product } from '../types'
@@ -24,6 +25,8 @@ const labels: Record<string, string> = {
   sync_stock_conflict: 'Stock conflict during sync',
   sync_completed: 'Sync completed',
   user_signed_in: 'User signed in',
+  settings_updated: 'Settings updated',
+  backup_restored: 'Backup restored',
 }
 const label = (a: string) => labels[a] ?? a
 
@@ -99,35 +102,54 @@ export default function Activity() {
   const actionOptions = Array.from(new Set(logs.map((l) => l.action))).sort()
   const stamp = manilaDayKey(new Date().toISOString())
 
-  const exportCsv = () => {
-    if (tab === 'logs') {
-      downloadCsv(`activity-log-${stamp}.csv`, [
-        ['Date and time (Manila)', 'User', 'Action', 'Entity', 'Entity ID', 'Details'],
-        ...logRows.map((l) => [
-          formatDateTime(l.created_at),
-          nameOf(l.user_id),
-          label(l.action),
-          l.entity_type,
-          l.entity_id,
-          summarize(l.details),
-        ]),
-      ])
-    } else {
-      downloadCsv(`stock-movements-${stamp}.csv`, [
-        ['Date and time (Manila)', 'Product', 'Type', 'Change', 'Before', 'After', 'Reason', 'By'],
-        ...moveRows.map((m) => [
-          formatDateTime(m.created_at),
-          productName(m.product_id),
-          moveLabels[m.movement_type],
-          m.quantity_change,
-          m.stock_before,
-          m.stock_after,
-          m.reason,
-          nameOf(m.created_by),
-        ]),
-      ])
-    }
-  }
+  const buildDoc = (): TableDoc =>
+    tab === 'logs'
+      ? {
+          title: 'Activity log',
+          subtitle: `${logRows.length} entries`,
+          fileBase: `activity-log-${stamp}`,
+          columns: [
+            { header: 'Date and time (Manila)', width: 24 },
+            { header: 'User', width: 24 },
+            { header: 'Action', width: 26 },
+            { header: 'Entity', width: 14 },
+            { header: 'Details', width: 70 },
+            { header: 'Entity ID', width: 38, pdf: false },
+          ],
+          rows: logRows.map((l) => [
+            formatDateTime(l.created_at),
+            nameOf(l.user_id),
+            label(l.action),
+            l.entity_type,
+            summarize(l.details),
+            l.entity_id,
+          ]),
+        }
+      : {
+          title: 'Stock movements',
+          subtitle: `${moveRows.length} movements`,
+          fileBase: `stock-movements-${stamp}`,
+          columns: [
+            { header: 'Date and time (Manila)', width: 24 },
+            { header: 'Product', width: 34 },
+            { header: 'Type', width: 16 },
+            { header: 'Change', kind: 'int', width: 10 },
+            { header: 'Before', kind: 'int', width: 10 },
+            { header: 'After', kind: 'int', width: 10 },
+            { header: 'Reason', width: 34 },
+            { header: 'By', width: 24 },
+          ],
+          rows: moveRows.map((m) => [
+            formatDateTime(m.created_at),
+            productName(m.product_id),
+            moveLabels[m.movement_type],
+            m.quantity_change,
+            m.stock_before,
+            m.stock_after,
+            m.reason,
+            nameOf(m.created_by),
+          ]),
+        }
 
   const tabBtn = (t: 'logs' | 'moves', text: string) => (
     <button
@@ -151,9 +173,10 @@ export default function Activity() {
           {tabBtn('logs', 'Activity log')}
           {tabBtn('moves', 'Stock movements')}
         </div>
-        <button onClick={exportCsv} className="rounded-lg bg-slate-700 px-3 py-1.5 text-sm font-semibold hover:bg-slate-600">
-          Export CSV
-        </button>
+        <ExportButtons
+          build={buildDoc}
+          disabled={(tab === 'logs' ? logRows.length : moveRows.length) === 0}
+        />
       </div>
 
       <div className="mb-3 flex flex-wrap gap-2">

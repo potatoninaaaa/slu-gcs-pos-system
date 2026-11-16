@@ -1,22 +1,23 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo, useState } from 'react'
 import {
-    Bar,
-    BarChart,
-    CartesianGrid,
-    Line,
-    LineChart,
-    ResponsiveContainer,
-    Tooltip,
-    XAxis,
-    YAxis,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from 'recharts'
 import DateFilter from '../components/DateFilter'
+import ExportButtons from '../components/ExportButtons'
 import { db } from '../db/db'
 import { useAuth } from '../hooks/useAuth'
 import { useProfileNames } from '../hooks/useProfiles'
-import { downloadCsv } from '../lib/csv'
 import { inRange, resolveRange, type DateFilterValue } from '../lib/dates'
+import type { TableDoc } from '../lib/exporter'
 import { formatPeso, manilaDayKey } from '../lib/format'
 import { roundMoney } from '../lib/money'
 import { inputCls } from '../lib/ui'
@@ -28,7 +29,7 @@ const dayLabel = new Intl.DateTimeFormat('en-PH', { timeZone: 'Asia/Manila', mon
 const labelOfKey = (k: string) => dayLabel.format(new Date(`${k}T00:00:00+08:00`))
 const hourLabel = (h: number) => `${h % 12 || 12}${h < 12 ? 'AM' : 'PM'}`
 
-interface Line {
+interface SaleLine {
   tx: LocalTransaction
   item: SaleItem
 }
@@ -77,7 +78,7 @@ export default function Dashboard() {
 
   const lines = useMemo(() => {
     const q = search.trim().toLowerCase()
-    const out: Line[] = []
+    const out: SaleLine[] = []
     for (const t of txs) {
       if (!inRange(t.created_at, range)) continue
       if (status !== 'all' && t.status !== status) continue
@@ -218,19 +219,30 @@ export default function Dashboard() {
     </button>
   )
 
-  const exportCsv = () =>
-    downloadCsv(`product-sales-${manilaDayKey(new Date().toISOString())}.csv`, [
-      ['Product', 'SKU', 'Units sold', 'Revenue (PHP)'],
-      ...productRows.map((p) => [p.name, p.sku, p.qty, p.revenue]),
-    ])
+  const productDoc = (): TableDoc => ({
+    title: 'Product sales',
+    subtitle: 'Completed sales within the selected filters',
+    summary: [
+      ['Total revenue', formatPeso(revenue)],
+      ['Completed transactions', String(txCount)],
+      ['Items sold', String(itemsSold)],
+      ['Average transaction', formatPeso(avg)],
+    ],
+    fileBase: `product-sales-${manilaDayKey(new Date().toISOString())}`,
+    columns: [
+      { header: 'Product', width: 32 },
+      { header: 'SKU', width: 18 },
+      { header: 'Units sold', kind: 'int', width: 12 },
+      { header: 'Revenue', kind: 'money', width: 16 },
+    ],
+    rows: productRows.map((p) => [p.name, p.sku, p.qty, p.revenue]),
+  })
 
   return (
     <div className="mx-auto max-w-7xl space-y-4 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-bold text-gold">Sales dashboard</h1>
-        <button onClick={exportCsv} className="rounded-lg bg-slate-700 px-3 py-1.5 text-sm font-semibold hover:bg-slate-600">
-          Export product sales CSV
-        </button>
+        <ExportButtons label="Product sales" build={productDoc} disabled={productRows.length === 0} />
       </div>
 
       <div className="flex flex-wrap gap-2">

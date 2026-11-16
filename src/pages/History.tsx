@@ -1,26 +1,32 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo, useState } from 'react'
 import DateFilter from '../components/DateFilter'
+import ExportButtons from '../components/ExportButtons'
 import Modal from '../components/Modal'
 import Receipt from '../components/Receipt'
 import { db } from '../db/db'
 import { useProfileNames } from '../hooks/useProfiles'
-import { downloadCsv } from '../lib/csv'
 import { defaultDateFilter, inRange, resolveRange, type DateFilterValue } from '../lib/dates'
+import type { TableDoc } from '../lib/exporter'
 import { formatDateTime, formatPeso, manilaDayKey } from '../lib/format'
 import { inputCls } from '../lib/ui'
 import type { LocalTransaction } from '../types'
 
 type Sort = 'newest' | 'oldest' | 'high' | 'low'
 
+const syncText = { synced: 'Synced', pending: 'Saved locally', error: 'Sync error' } as const
+
 function SyncTag({ s }: { s: LocalTransaction['sync_status'] }) {
-  const map = {
-    synced: ['Synced', 'bg-emerald-900/60 text-emerald-300'],
-    pending: ['Saved locally', 'bg-amber-900/50 text-amber-300'],
-    error: ['Sync error', 'bg-red-900/50 text-red-300'],
-  } as const
-  const [text, cls] = map[s]
-  return <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${cls}`}>{text}</span>
+  const cls = {
+    synced: 'bg-emerald-900/60 text-emerald-300',
+    pending: 'bg-amber-900/50 text-amber-300',
+    error: 'bg-red-900/50 text-red-300',
+  }[s]
+  return (
+    <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${cls}`}>
+      {syncText[s]}
+    </span>
+  )
 }
 
 function StatusTag({ s }: { s: LocalTransaction['status'] }) {
@@ -74,40 +80,66 @@ export default function History() {
   const revenue = completed.reduce((s, t) => s + t.total_amount, 0)
   const stamp = manilaDayKey(new Date().toISOString())
 
-  const exportTransactions = () =>
-    downloadCsv(`transactions-${stamp}.csv`, [
-      ['Transaction ID', 'Receipt no', 'Date and time (Manila)', 'Cashier', 'Status', 'Items', 'Total (PHP)', 'Cash received (PHP)', 'Change (PHP)', 'Sync status'],
-      ...rows.map((t) => [
-        t.id,
+  const transactionsDoc = (): TableDoc => ({
+    title: 'Transaction history',
+    subtitle: `${rows.length} transactions, ${completed.length} completed`,
+    summary: [['Total revenue (completed sales)', formatPeso(revenue)]],
+    fileBase: `transactions-${stamp}`,
+    columns: [
+      { header: 'Receipt no', width: 22 },
+      { header: 'Date and time (Manila)', width: 24 },
+      { header: 'Cashier', width: 22 },
+      { header: 'Status', width: 12 },
+      { header: 'Items', kind: 'int', width: 8 },
+      { header: 'Total', kind: 'money', width: 14 },
+      { header: 'Cash received', kind: 'money', width: 14 },
+      { header: 'Change', kind: 'money', width: 14 },
+      { header: 'Sync', width: 14 },
+      { header: 'Transaction ID', width: 38, pdf: false },
+    ],
+    rows: rows.map((t) => [
+      t.receipt_no,
+      formatDateTime(t.created_at),
+      nameOf(t.cashier_id),
+      t.status === 'completed' ? 'Completed' : 'Cancelled',
+      t.items.reduce((s, i) => s + i.quantity, 0),
+      t.total_amount,
+      t.cash_received,
+      t.change_given,
+      syncText[t.sync_status],
+      t.id,
+    ]),
+  })
+
+  const itemsDoc = (): TableDoc => ({
+    title: 'Transaction line items',
+    subtitle: `${rows.length} transactions`,
+    fileBase: `transaction-items-${stamp}`,
+    columns: [
+      { header: 'Receipt no', width: 22 },
+      { header: 'Date and time (Manila)', width: 24 },
+      { header: 'Status', width: 12 },
+      { header: 'Product', width: 30 },
+      { header: 'SKU', width: 16 },
+      { header: 'Quantity', kind: 'int', width: 10 },
+      { header: 'Unit price', kind: 'money', width: 14 },
+      { header: 'Line total', kind: 'money', width: 14 },
+      { header: 'Transaction ID', width: 38, pdf: false },
+    ],
+    rows: rows.flatMap((t) =>
+      t.items.map((i) => [
         t.receipt_no,
         formatDateTime(t.created_at),
-        nameOf(t.cashier_id),
-        t.status,
-        t.items.reduce((s, i) => s + i.quantity, 0),
-        t.total_amount,
-        t.cash_received,
-        t.change_given,
-        t.sync_status,
+        t.status === 'completed' ? 'Completed' : 'Cancelled',
+        i.product_name,
+        i.sku,
+        i.quantity,
+        i.unit_price,
+        i.line_total,
+        t.id,
       ]),
-    ])
-
-  const exportItems = () =>
-    downloadCsv(`transaction-items-${stamp}.csv`, [
-      ['Transaction ID', 'Receipt no', 'Date and time (Manila)', 'Status', 'Product', 'SKU', 'Quantity', 'Unit price (PHP)', 'Line total (PHP)'],
-      ...rows.flatMap((t) =>
-        t.items.map((i) => [
-          t.id,
-          t.receipt_no,
-          formatDateTime(t.created_at),
-          t.status,
-          i.product_name,
-          i.sku,
-          i.quantity,
-          i.unit_price,
-          i.line_total,
-        ]),
-      ),
-    ])
+    ),
+  })
 
   return (
     <div className="mx-auto max-w-7xl p-3">
@@ -118,13 +150,9 @@ export default function History() {
             {rows.length} transactions, {completed.length} completed, {formatPeso(revenue)} revenue
           </p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={exportTransactions} className="rounded-lg bg-slate-700 px-3 py-1.5 text-sm font-semibold hover:bg-slate-600">
-            Export CSV
-          </button>
-          <button onClick={exportItems} className="rounded-lg bg-slate-700 px-3 py-1.5 text-sm font-semibold hover:bg-slate-600">
-            Export line items
-          </button>
+        <div className="flex flex-wrap gap-3">
+          <ExportButtons label="Transactions" build={transactionsDoc} disabled={rows.length === 0} />
+          <ExportButtons label="Line items" build={itemsDoc} disabled={rows.length === 0} />
         </div>
       </div>
 
