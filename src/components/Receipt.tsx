@@ -1,5 +1,7 @@
+import { useSettings } from '../hooks/useSettings'
 import { formatDateTime, formatPeso } from '../lib/format'
 import type { LocalTransaction } from '../types'
+import { LogoRow } from './Logo'
 
 interface Props {
   tx: LocalTransaction
@@ -8,13 +10,17 @@ interface Props {
 }
 
 export default function Receipt({ tx, onClose, closeLabel = 'New sale' }: Props) {
+  const settings = useSettings()
+  const org = settings.organization ?? {}
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto bg-black/60 p-4">
       <div className="w-full max-w-sm rounded-xl bg-white p-4 text-slate-900 shadow-xl">
         <div className="print-area bg-white p-2 font-mono text-sm">
           <div className="text-center">
-            <p className="text-base font-bold">Green Core Society</p>
-            <p>Saint Louis University</p>
+            <LogoRow className="mb-2 h-10" />
+            <p className="text-base font-bold">{org.name || 'Green Core Society'}</p>
+            <p>{org.school || 'Saint Louis University'}</p>
             <p className="mt-1">{tx.status === 'cancelled' ? 'CANCELLED SALE' : 'Official Receipt'}</p>
           </div>
           <div className="my-2 border-t border-dashed border-slate-400" />
@@ -46,7 +52,7 @@ export default function Receipt({ tx, onClose, closeLabel = 'New sale' }: Props)
             <span>{formatPeso(tx.change_given)}</span>
           </p>
           <div className="my-2 border-t border-dashed border-slate-400" />
-          <p className="text-center">Thank you for supporting GCS!</p>
+          <p className="text-center">{org.receipt_footer || 'Thank you for supporting GCS!'}</p>
         </div>
 
         <p className="mt-3 text-center text-xs text-slate-500">

@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { LogoRow } from '../components/Logo'
 import { useAuth } from '../hooks/useAuth'
 import { useOnline } from '../hooks/useOnline'
 
@@ -27,7 +28,7 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-emerald-deep p-4">
       <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
         <div className="mb-6 text-center">
-          {/* Logo slots (SLU, GCS, SAMCIS) are added in the settings phase */}
+          <LogoRow className="mb-3 h-12" />
           <h1 className="text-2xl font-bold text-emerald-deep">Green Core Society</h1>
           <p className="text-sm text-slate-500">POS and Inventory System</p>
         </div>

@@ -8,7 +8,7 @@ import type {
   OutboxItem,
   SaleItem,
 } from '../types'
-import { cacheProductImages } from './images'
+import { cacheBrandingImages, cacheProductImages } from './images'
 
 export interface SyncState {
   running: boolean
@@ -168,7 +168,16 @@ async function pullAll(includeHistory: boolean) {
   const prof = await supabase.from('profiles').select('id, email, full_name, role')
   if (!prof.error) await db.kv.put({ key: 'profiles', value: prof.data })
 
+  const st = await supabase.from('app_settings').select('key, value')
+  if (!st.error) {
+    await db.kv.put({
+      key: 'settings',
+      value: Object.fromEntries(st.data.map((r) => [r.key, r.value])),
+    })
+  }
+
   await cacheProductImages()
+  await cacheBrandingImages()
   if (includeHistory) await pullHistory()
   await db.kv.put({ key: 'last_pull', value: new Date().toISOString() })
 }
@@ -298,7 +307,7 @@ async function pushAll(): Promise<number> {
 }
 
 // ---------- Orchestration ----------
-export async function syncNow(): Promise<void> {
+export async function syncNow(forceHistory = false): Promise<void> {
   if (state.running || !navigator.onLine) return
   const { data } = await supabase.auth.getSession()
   if (!data.session) return
@@ -310,7 +319,8 @@ export async function syncNow(): Promise<void> {
     if (pushed > 0) {
       await logActivity(currentUserId, 'sync_completed', 'sync', null, { uploaded: pushed })
     }
-    const includeHistory = pushed > 0 || Date.now() - lastHistoryPull > HISTORY_EVERY_MS
+    const includeHistory =
+      forceHistory || pushed > 0 || Date.now() - lastHistoryPull > HISTORY_EVERY_MS
     await pullAll(includeHistory)
     setState({ lastSyncAt: new Date().toISOString() })
   } catch (err) {

@@ -3,10 +3,12 @@ import AppLayout from './components/AppLayout'
 import { useAuth } from './hooks/useAuth'
 import Activity from './pages/Activity'
 import Cashier from './pages/Cashier'
+import Dashboard from './pages/Dashboard'
 import History from './pages/History'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import Products from './pages/Products'
+import Settings from './pages/Settings'
 
 function Splash() {
   return (
@@ -26,8 +28,10 @@ export default function App() {
       <Route element={session ? <AppLayout /> : <Navigate to="/login" replace />}>
         <Route path="/" element={<Cashier />} />
         <Route path="/history" element={<History />} />
+        <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/products" element={<Products />} />
         <Route path="/activity" element={<Activity />} />
+        <Route path="/settings" element={<Settings />} />
         <Route path="/status" element={<Home />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
