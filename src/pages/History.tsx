@@ -18,9 +18,9 @@ const syncText = { synced: 'Synced', pending: 'Saved locally', error: 'Sync erro
 
 function SyncTag({ s }: { s: LocalTransaction['sync_status'] }) {
   const cls = {
-    synced: 'bg-emerald-900/60 text-emerald-300',
-    pending: 'bg-amber-900/50 text-amber-300',
-    error: 'bg-red-900/50 text-red-300',
+    synced: 'bg-emerald-100 text-emerald-800',
+    pending: 'bg-amber-100 text-amber-800',
+    error: 'bg-red-100 text-red-700',
   }[s]
   return (
     <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${cls}`}>
@@ -33,7 +33,7 @@ function StatusTag({ s }: { s: LocalTransaction['status'] }) {
   return (
     <span
       className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-        s === 'completed' ? 'bg-emerald-900/60 text-emerald-300' : 'bg-slate-600 text-slate-200'
+        s === 'completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-600 text-slate-200'
       }`}
     >
       {s === 'completed' ? 'Completed' : 'Cancelled'}
@@ -156,26 +156,26 @@ export default function History() {
         </div>
       </div>
 
-      <div className="mb-3 flex flex-wrap gap-2">
+      <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
         <DateFilter value={date} onChange={setDate} />
         <input
-          className={`${inputCls} w-full sm:w-64`}
+          className={`${inputCls} lg:col-span-2`}
           placeholder="Receipt, ID, product, or SKU"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <select className={`${inputCls} w-auto`} value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
+        <select className={inputCls} value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
           <option value="all">All statuses</option>
           <option value="completed">Completed</option>
           <option value="cancelled">Cancelled</option>
         </select>
-        <select className={`${inputCls} w-auto`} value={sync} onChange={(e) => setSync(e.target.value as typeof sync)}>
+        <select className={inputCls} value={sync} onChange={(e) => setSync(e.target.value as typeof sync)}>
           <option value="all">All sync states</option>
           <option value="synced">Synced</option>
           <option value="pending">Saved locally</option>
           <option value="error">Sync error</option>
         </select>
-        <select className={`${inputCls} w-auto`} value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
+        <select className={inputCls} value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
           <option value="newest">Newest first</option>
           <option value="oldest">Oldest first</option>
           <option value="high">Highest total</option>
@@ -222,7 +222,7 @@ export default function History() {
             </tbody>
           </table>
           {rows.length > limit && (
-            <button onClick={() => setLimit((l) => l + 100)} className="mt-3 w-full rounded-lg bg-slate-700 py-2 text-sm">
+            <button onClick={() => setLimit((l) => l + 100)} className="mt-3 w-full rounded-xl bg-slate-700 py-2 text-sm font-semibold text-slate-100 hover:bg-slate-600">
               Show more ({rows.length - limit} left)
             </button>
           )}
@@ -239,7 +239,7 @@ export default function History() {
             <p className="flex items-center gap-2">
               <StatusTag s={open.status} /> <SyncTag s={open.sync_status} />
             </p>
-            {open.sync_error && <p className="text-red-300">Sync error: {open.sync_error}</p>}
+            {open.sync_error && <p className="text-red-600">Sync error: {open.sync_error}</p>}
           </div>
           <ul className="my-3 space-y-1 border-y border-slate-700 py-3 text-sm">
             {open.items.map((i) => (

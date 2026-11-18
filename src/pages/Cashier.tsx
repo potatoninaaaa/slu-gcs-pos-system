@@ -140,12 +140,12 @@ export default function Cashier() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name or SKU"
-            className="flex-1 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-white placeholder-slate-500 outline-none focus:border-gold"
+            className="flex-1 rounded-xl border border-slate-600 bg-slate-800 px-3 py-2 text-slate-50 placeholder:text-slate-500 outline-none focus:border-gold"
           />
           <select
             value={categoryId}
             onChange={(e) => setCategoryId(e.target.value)}
-            className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-white outline-none focus:border-gold"
+            className="rounded-xl border border-slate-600 bg-slate-800 px-3 py-2 text-slate-50 outline-none focus:border-gold"
           >
             <option value="all">All categories</option>
             {categories.map((c) => (
@@ -176,7 +176,7 @@ export default function Cashier() {
                   key={p.id}
                   onClick={() => addToCart(p)}
                   disabled={disabled}
-                  className="relative overflow-hidden rounded-xl bg-slate-800 text-left transition enabled:hover:ring-2 enabled:hover:ring-gold enabled:active:scale-[0.98] disabled:opacity-50"
+                  className="relative overflow-hidden rounded-2xl bg-slate-800 text-left shadow-lg ring-1 ring-slate-600/50 transition enabled:hover:ring-2 enabled:hover:ring-gold enabled:active:scale-[0.98] disabled:opacity-50"
                 >
                   <ProductImage path={p.image_path} name={p.name} className="h-28 w-full sm:h-32" />
                   <span
@@ -237,7 +237,7 @@ export default function Cashier() {
                   </div>
                   <button
                     onClick={() => setQty(p, 0)}
-                    className="text-xs text-red-400 hover:text-red-300"
+                    className="text-xs font-semibold text-red-600 hover:text-red-700"
                   >
                     Remove
                   </button>
@@ -267,7 +267,7 @@ export default function Cashier() {
           value={cash}
           onChange={(e) => setCash(e.target.value.replace(/[^0-9.]/g, ''))}
           placeholder="0.00"
-          className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-lg text-white outline-none focus:border-gold"
+          className="mt-1 w-full rounded-xl border border-slate-600 bg-slate-700 px-3 py-2 text-lg text-slate-50 placeholder:text-slate-500 outline-none focus:border-gold focus:bg-slate-800"
         />
         <div className="mt-2 flex flex-wrap gap-2">
           <button
@@ -291,7 +291,7 @@ export default function Cashier() {
         {lines.length > 0 && (
           <p
             className={`mt-3 rounded-lg px-3 py-2 text-center font-semibold ${
-              cashNum >= total ? 'bg-emerald-900/60 text-emerald-300' : 'bg-red-900/50 text-red-300'
+              cashNum >= total ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-700'
             }`}
           >
             {cashNum >= total
@@ -301,7 +301,7 @@ export default function Cashier() {
         )}
 
         {error && (
-          <p className="mt-3 rounded-lg bg-red-900/50 px-3 py-2 text-sm text-red-200">{error}</p>
+          <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
         )}
 
         <button

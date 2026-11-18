@@ -147,7 +147,7 @@ export default function Products() {
       <button className={btn} onClick={() => void toggleArchive(p)}>
         {p.is_archived ? 'Restore' : 'Archive'}
       </button>
-      <button className={`${btn} text-red-300`} onClick={() => void remove(p)}>
+      <button className={`${btn} text-red-600`} onClick={() => void remove(p)}>
         Delete
       </button>
     </div>
@@ -188,7 +188,7 @@ export default function Products() {
       {notice && (
         <p
           className={`mb-3 rounded-lg px-3 py-2 text-sm ${
-            notice.ok ? 'bg-emerald-900/60 text-emerald-300' : 'bg-red-900/50 text-red-200'
+            notice.ok ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-700'
           }`}
         >
           {notice.text}
@@ -243,7 +243,7 @@ export default function Products() {
           </select>
           <button
             onClick={() => setAsc((a) => !a)}
-            className="rounded-lg border border-slate-700 bg-slate-800 px-3 text-sm"
+            className="rounded-xl border border-slate-600 bg-slate-800 px-3 text-sm text-slate-100"
             aria-label="Toggle sort direction"
           >
             {asc ? 'A→Z' : 'Z→A'}
@@ -258,7 +258,7 @@ export default function Products() {
           {rows.map((p) => {
             const st = statusOf(p)
             return (
-              <div key={p.id} className="overflow-hidden rounded-xl bg-slate-800">
+              <div key={p.id} className="overflow-hidden rounded-2xl bg-slate-800 shadow-lg ring-1 ring-slate-600/50">
                 <div className="relative">
                   <ProductImage path={p.image_path} name={p.name} className="h-40 w-full" />
                   <span className={`absolute left-2 top-2 rounded-full px-2 py-0.5 text-[11px] font-semibold ${st.cls}`}>

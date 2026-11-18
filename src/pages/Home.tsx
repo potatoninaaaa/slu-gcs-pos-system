@@ -29,7 +29,7 @@ const EMPTY: Facts = {
 
 function Row({ ok, label, detail }: { ok: boolean | null; label: string; detail?: string }) {
   const mark = ok === null ? '…' : ok ? '✓' : '✗'
-  const cls = ok === null ? 'text-slate-400' : ok ? 'text-emerald-400' : 'text-red-400'
+  const cls = ok === null ? 'text-slate-400' : ok ? 'text-emerald-600' : 'text-red-600'
   return (
     <li className="flex items-start gap-3 py-2">
       <span className={`w-5 text-center text-lg font-bold ${cls}`}>{mark}</span>
@@ -102,7 +102,7 @@ export default function Home() {
     <div className="mx-auto max-w-lg space-y-4 p-3">
       <div
         className={`rounded-xl p-4 font-semibold ${
-          ready ? 'bg-emerald-900/60 text-emerald-300' : 'bg-amber-900/40 text-amber-200'
+          ready ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'
         }`}
       >
         {ready
@@ -145,7 +145,7 @@ export default function Home() {
         <p>Network: {online ? 'Online' : 'Offline'}</p>
         <p>Last sync: {lastSyncAt ? formatDateTime(lastSyncAt) : 'not yet this session'}</p>
         <p>Sales saved on this device: {facts.sales}</p>
-        {lastError && <p className="text-red-300">Sync error: {lastError}</p>}
+        {lastError && <p className="text-red-600">Sync error: {lastError}</p>}
       </div>
     </div>
   )
