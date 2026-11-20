@@ -297,7 +297,7 @@ export default function Cashier() {
               value={cash}
               onChange={(e) => setCash(e.target.value.replace(/[^0-9.]/g, ''))}
               placeholder="0.00"
-              className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-lg text-white outline-none focus:border-gold"
+              className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-lg text-black outline-none focus:border-gold"
             />
             <div className="mt-2 flex flex-wrap gap-2">
               <button
