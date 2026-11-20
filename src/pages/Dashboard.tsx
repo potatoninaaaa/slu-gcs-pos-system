@@ -34,10 +34,10 @@ interface SaleLine {
   item: SaleItem
 }
 
-const GOLD = '#f59e0b'
-const GRID = '#334155'
-const AXIS = '#94a3b8'
-const tooltipStyle = { background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#fff' }
+const GOLD = '#278a5a'
+const GRID = '#dbe7de'
+const AXIS = '#5f7d6b'
+const tooltipStyle = { background: '#ffffff', border: '1px solid #bcd3c4', borderRadius: 12, color: '#12372a' }
 
 function Kpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -223,7 +223,7 @@ export default function Dashboard() {
           setPAsc(key === 'name')
         }
       }}
-      className="font-semibold hover:text-white"
+      className="font-semibold hover:text-gold"
     >
       {text} {pSort === key ? (pAsc ? '▲' : '▼') : ''}
     </button>
@@ -257,15 +257,15 @@ export default function Dashboard() {
         <ExportButtons label="Product sales" build={productDoc} disabled={productRows.length === 0} />
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
         <DateFilter value={date} onChange={setDate} />
         <input
-          className={`${inputCls} w-full sm:w-56`}
+          className={inputCls}
           placeholder="Product name or SKU"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <select className={`${inputCls} w-auto`} value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+        <select className={inputCls} value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
           <option value="all">All categories</option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
@@ -273,7 +273,7 @@ export default function Dashboard() {
             </option>
           ))}
         </select>
-        <select className={`${inputCls} w-auto`} value={cashier} onChange={(e) => setCashier(e.target.value)}>
+        <select className={inputCls} value={cashier} onChange={(e) => setCashier(e.target.value)}>
           <option value="all">All cashiers</option>
           {cashierIds.map((id) => (
             <option key={id} value={id}>
@@ -281,7 +281,7 @@ export default function Dashboard() {
             </option>
           ))}
         </select>
-        <select className={`${inputCls} w-auto`} value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
+        <select className={inputCls} value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
           <option value="completed">Completed</option>
           <option value="cancelled">Cancelled</option>
           <option value="all">All statuses</option>
@@ -359,7 +359,7 @@ export default function Dashboard() {
                   <XAxis dataKey="name" stroke={AXIS} fontSize={12} />
                   <YAxis stroke={AXIS} fontSize={12} width={60} tickFormatter={(v) => `₱${v}`} />
                   <Tooltip contentStyle={tooltipStyle} formatter={(v) => [formatPeso(Number(v)), 'Revenue']} />
-                  <Bar dataKey="value" fill="#10b981" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="value" fill="#8fc9a6" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

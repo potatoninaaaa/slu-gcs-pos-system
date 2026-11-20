@@ -179,15 +179,15 @@ export default function Activity() {
         />
       </div>
 
-      <div className="mb-3 flex flex-wrap gap-2">
+      <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <DateFilter value={date} onChange={setDate} />
         <input
-          className={`${inputCls} w-full sm:w-64`}
+          className={inputCls}
           placeholder="Search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <select className={`${inputCls} w-auto`} value={kind} onChange={(e) => setKind(e.target.value)}>
+        <select className={inputCls} value={kind} onChange={(e) => setKind(e.target.value)}>
           <option value="all">{tab === 'logs' ? 'All actions' : 'All types'}</option>
           {tab === 'logs'
             ? actionOptions.map((a) => (
@@ -250,7 +250,7 @@ export default function Activity() {
                   <td className="whitespace-nowrap py-2 pr-2">{formatDateTime(m.created_at)}</td>
                   <td className="py-2 pr-2">{productName(m.product_id)}</td>
                   <td className="py-2 pr-2">{moveLabels[m.movement_type]}</td>
-                  <td className={`py-2 pr-2 font-semibold ${m.quantity_change < 0 ? 'text-red-300' : 'text-emerald-300'}`}>
+                  <td className={`py-2 pr-2 font-semibold ${m.quantity_change < 0 ? 'text-red-600' : 'text-emerald-700'}`}>
                     {m.quantity_change > 0 ? `+${m.quantity_change}` : m.quantity_change}
                   </td>
                   <td className="py-2 pr-2">
@@ -264,7 +264,7 @@ export default function Activity() {
           </table>
         )}
         {(tab === 'logs' ? logRows.length : moveRows.length) > limit && (
-          <button onClick={() => setLimit((l) => l + 100)} className="mt-3 w-full rounded-lg bg-slate-700 py-2 text-sm">
+          <button onClick={() => setLimit((l) => l + 100)} className="mt-3 w-full rounded-xl bg-slate-700 py-2 text-sm font-semibold text-slate-100 hover:bg-slate-600">
             Show more
           </button>
         )}

@@ -278,11 +278,11 @@ export default function ProductFormModal({ product, onClose, onSaved }: Props) {
           />
         </div>
 
-        {error && <p className="rounded-lg bg-red-900/50 px-3 py-2 text-sm text-red-200">{error}</p>}
+        {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
         <button
           type="submit"
           disabled={busy}
-          className="w-full rounded-lg bg-gold py-2.5 font-bold text-slate-deep disabled:opacity-50"
+          className="w-full rounded-lg bg-gold py-2.5 font-bold text-white disabled:opacity-50"
         >
           {busy ? 'Saving...' : product ? 'Save changes' : 'Add product'}
         </button>

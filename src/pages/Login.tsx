@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { LogoRow } from '../components/Logo'
 import { useAuth } from '../hooks/useAuth'
 import { useOnline } from '../hooks/useOnline'
+import { inputCls } from '../lib/ui'
 
 export default function Login() {
   const { signIn } = useAuth()
@@ -26,16 +27,16 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-emerald-deep p-4">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+      <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl ring-1 ring-slate-600/50">
         <div className="mb-6 text-center">
           <LogoRow className="mb-3 h-12" />
-          <h1 className="text-2xl font-bold text-emerald-deep">Green Core Society</h1>
+          <h1 className="text-2xl font-bold text-slate-50">Green Core Society</h1>
           <p className="text-sm text-slate-500">POS and Inventory System</p>
         </div>
 
         <form onSubmit={onSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="email">
+            <label className="mb-1 block text-sm font-medium text-slate-300" htmlFor="email">
               Email
             </label>
             <input
@@ -45,11 +46,11 @@ export default function Login() {
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-emerald-deep focus:ring-2 focus:ring-emerald-deep/20"
+              className={inputCls}
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="password">
+            <label className="mb-1 block text-sm font-medium text-slate-300" htmlFor="password">
               Password
             </label>
             <input
@@ -59,7 +60,7 @@ export default function Login() {
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-emerald-deep focus:ring-2 focus:ring-emerald-deep/20"
+              className={inputCls}
             />
           </div>
 
@@ -70,7 +71,7 @@ export default function Login() {
           <button
             type="submit"
             disabled={busy}
-            className="w-full rounded-lg bg-emerald-deep py-2.5 font-semibold text-white transition hover:bg-emerald-900 disabled:opacity-60"
+            className="w-full rounded-xl bg-gold py-2.5 font-semibold text-white transition hover:brightness-110 disabled:opacity-60"
           >
             {busy ? 'Signing in...' : 'Sign in'}
           </button>

@@ -15,13 +15,14 @@ const options: { value: Preset; label: string }[] = [
   { value: 'all', label: 'All time' },
 ]
 
+// Renders straight into the page's filter grid, so it lines up with the other filters.
 export default function DateFilter({ value, onChange }: Props) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <>
       <select
         value={value.preset}
         onChange={(e) => onChange({ ...value, preset: e.target.value as Preset })}
-        className={`${inputCls} w-auto`}
+        className={inputCls}
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -30,22 +31,22 @@ export default function DateFilter({ value, onChange }: Props) {
         ))}
       </select>
       {value.preset === 'custom' && (
-        <>
+        <div className="flex items-center gap-2 sm:col-span-2">
           <input
             type="date"
             value={value.from}
             onChange={(e) => onChange({ ...value, from: e.target.value })}
-            className={`${inputCls} w-auto`}
+            className={inputCls}
           />
           <span className="text-sm text-slate-400">to</span>
           <input
             type="date"
             value={value.to}
             onChange={(e) => onChange({ ...value, to: e.target.value })}
-            className={`${inputCls} w-auto`}
+            className={inputCls}
           />
-        </>
+        </div>
       )}
-    </div>
+    </>
   )
 }

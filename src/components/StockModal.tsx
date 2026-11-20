@@ -57,7 +57,7 @@ export default function StockModal({ product, onClose, onDone }: Props) {
       type="button"
       onClick={() => setMode(m)}
       className={`flex-1 rounded-lg py-2 text-sm font-semibold ${
-        mode === m ? 'bg-gold text-slate-deep' : 'bg-slate-700 text-slate-200'
+        mode === m ? 'bg-gold text-white' : 'bg-slate-700 text-slate-200'
       }`}
     >
       {label}
@@ -106,15 +106,15 @@ export default function StockModal({ product, onClose, onDone }: Props) {
           </datalist>
         </div>
         {after !== null && (
-          <p className={`text-sm ${after < 0 ? 'text-red-300' : 'text-slate-300'}`}>
+          <p className={`text-sm ${after < 0 ? 'text-red-600' : 'text-slate-300'}`}>
             New stock will be: <strong>{after}</strong>
           </p>
         )}
-        {error && <p className="rounded-lg bg-red-900/50 px-3 py-2 text-sm text-red-200">{error}</p>}
+        {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
         <button
           type="submit"
           disabled={busy}
-          className="w-full rounded-lg bg-gold py-2.5 font-bold text-slate-deep disabled:opacity-50"
+          className="w-full rounded-lg bg-gold py-2.5 font-bold text-white disabled:opacity-50"
         >
           {busy ? 'Saving...' : 'Save adjustment'}
         </button>

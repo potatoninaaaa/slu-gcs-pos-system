@@ -1,12 +1,135 @@
 @import "tailwindcss";
 
+/*
+  Fresh green & white palette (light, easy on the eyes)
+  #F3F8F4  mist     (page)
+  #FFFFFF  white    (cards, sidebar, modals)
+  #E3EFE6  sprout   (inputs, raised surfaces)
+  #278A5A  leaf     (primary action / accent)
+  #12372A  forest   (text)
+
+  The app's pages use the slate-* / gold / emerald-deep tokens in
+  dark-theme order (50 = lightest text, 800/900 = surfaces). The scale is
+  inverted here (50 = darkest ink, 800 = white card), so every page,
+  including ones not edited by hand, switches to the light theme with no
+  logic changes.
+*/
 @theme {
-  --color-emerald-deep: #064e3b;
-  --color-gold: #f59e0b;
-  --color-slate-deep: #0f172a;
+  --font-sans: "Nunito", ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, -apple-system, sans-serif;
+
+  --color-emerald-deep: #eaf4ed;
+  --color-gold: #278a5a;
+  --color-slate-deep: #ffffff;
+
+  --color-slate-50: #12372a;
+  --color-slate-100: #173f30;
+  --color-slate-200: #24503e;
+  --color-slate-300: #3f6552;
+  --color-slate-400: #5f7d6b;
+  --color-slate-500: #809a8a;
+  --color-slate-600: #bcd3c4;
+  --color-slate-700: #e3efe6;
+  --color-slate-800: #ffffff;
+  --color-slate-900: #f1f7f3;
+  --color-slate-950: #e8f2ea;
+
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.5rem;
+  --radius-3xl: 2rem;
+
+  --shadow-xl: 0 14px 36px -14px rgb(18 55 42 / 0.22);
+  --shadow-lg: 0 8px 22px -10px rgb(18 55 42 / 0.2);
+}
+
+@layer base {
+  html {
+    background: #f3f8f4;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    font-family: var(--font-sans);
+    background:
+      radial-gradient(900px 420px at 90% -8%, rgb(39 138 90 / 0.10), transparent 60%),
+      radial-gradient(700px 380px at -5% 105%, rgb(39 138 90 / 0.07), transparent 60%),
+      #f3f8f4;
+    background-attachment: fixed;
+    color: #12372a;
+  }
+  button,
+  select,
+  input,
+  textarea {
+    transition:
+      background-color 0.15s,
+      border-color 0.15s,
+      box-shadow 0.15s,
+      transform 0.1s;
+  }
+  button:not(:disabled):active {
+    transform: scale(0.97);
+  }
+  :focus-visible {
+    outline: 2px solid #278a5a;
+    outline-offset: 2px;
+  }
+  input:not([type="checkbox"]):focus,
+  select:focus,
+  textarea:focus {
+    border-color: #278a5a;
+    box-shadow: 0 0 0 3px rgb(39 138 90 / 0.2);
+    outline: none;
+  }
+  input[type="checkbox"] {
+    accent-color: #278a5a;
+    width: 1rem;
+    height: 1rem;
+  }
+  ::placeholder {
+    color: #809a8a;
+  }
+  ::selection {
+    background: #278a5a;
+    color: #fff;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #bcd3c4;
+    border-radius: 999px;
+    border: 2px solid #f3f8f4;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      transition: none !important;
+    }
+  }
+}
+
+/* Light-theme fixes for translucent-white utilities used on dark surfaces.
+   Unlayered, so they win over Tailwind's layered utilities. */
+.ring-white\/10,
+.ring-white\/5 {
+  --tw-ring-color: rgb(18 55 42 / 0.1);
+}
+.bg-white\/5,
+.bg-white\/10 {
+  background-color: rgb(18 55 42 / 0.05);
+}
+.hover\:bg-white\/10:hover {
+  background-color: rgb(39 138 90 / 0.1);
+}
+.border-white\/10 {
+  border-color: rgb(18 55 42 / 0.12);
 }
 
 @media print {
+  body {
+    background: #fff !important;
+  }
   body * {
     visibility: hidden;
   }
