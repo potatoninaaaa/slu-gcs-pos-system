@@ -280,7 +280,7 @@ export default function Cashier() {
             setPaymentMethod(e.target.value as PaymentMethod)
             setGcashConfirmed(false)
           }}
-          className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white outline-none focus:border-gold"
+          className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-black outline-none focus:border-gold"
         >
           <option value="cash">Cash</option>
           <option value="gcash">GCash</option>
@@ -320,20 +320,20 @@ export default function Cashier() {
           </>
         ) : (
           <div className="mt-3 space-y-3">
-            <p className="rounded-lg bg-amber-900/40 px-3 py-2 text-sm text-amber-200">
+            <p className="rounded-lg bg-amber-900/40 px-3 py-2 text-sm text-black">
               Confirm the payment in the GCash app before completing this sale. This POS does not
               verify GCash payments automatically.
             </p>
-            <label className="block text-sm text-slate-300" htmlFor="payment-reference">
+            <label className="block text-sm text-black" htmlFor="payment-reference">
               GCash reference number (optional)
             </label>
             <input
               id="payment-reference"
               value={paymentReference}
               onChange={(e) => setPaymentReference(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white outline-none focus:border-gold"
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-black outline-none focus:border-gold"
             />
-            <label className="flex items-start gap-2 text-sm text-slate-300">
+            <label className="flex items-start gap-2 text-sm text-black">
               <input
                 type="checkbox"
                 checked={gcashConfirmed}
@@ -357,7 +357,7 @@ export default function Cashier() {
           </p>
         )}
         {lines.length > 0 && paymentMethod === 'gcash' && (
-          <p className="mt-3 rounded-lg bg-emerald-900/60 px-3 py-2 text-center font-semibold text-emerald-300">
+          <p className="mt-3 rounded-lg bg-emerald-900/60 px-3 py-2 text-center font-semibold text-black">
             GCash payment due: {formatPeso(total)} · Change: {formatPeso(0)}
           </p>
         )}
