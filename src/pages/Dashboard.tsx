@@ -63,6 +63,7 @@ export default function Dashboard() {
   const [categoryId, setCategoryId] = useState('all')
   const [cashier, setCashier] = useState('all')
   const [status, setStatus] = useState<'completed' | 'cancelled' | 'all'>('completed')
+  const [paymentMethod, setPaymentMethod] = useState<'all' | 'cash' | 'gcash'>('all')
   const [pSort, setPSort] = useState<PSort>('revenue')
   const [pAsc, setPAsc] = useState(false)
 
@@ -82,6 +83,7 @@ export default function Dashboard() {
     for (const t of txs) {
       if (!inRange(t.created_at, range)) continue
       if (status !== 'all' && t.status !== status) continue
+      if (paymentMethod !== 'all' && t.payment_method !== paymentMethod) continue
       if (cashier !== 'all' && t.cashier_id !== cashier) continue
       for (const item of t.items) {
         if (q && !item.product_name.toLowerCase().includes(q) && !item.sku.toLowerCase().includes(q)) continue
@@ -90,11 +92,19 @@ export default function Dashboard() {
       }
     }
     return out
-  }, [txs, range, status, cashier, search, categoryId, productsById])
+  }, [txs, range, status, paymentMethod, cashier, search, categoryId, productsById])
 
   const done = useMemo(() => lines.filter((l) => l.tx.status === 'completed'), [lines])
 
   const revenue = roundMoney(done.reduce((s, l) => s + l.item.line_total, 0))
+  const paymentRevenue = done.reduce(
+    (totals, line) => {
+      if (line.tx.payment_method === 'gcash') totals.gcash += line.item.line_total
+      else totals.cash += line.item.line_total
+      return totals
+    },
+    { cash: 0, gcash: 0 },
+  )
   const itemsSold = done.reduce((s, l) => s + l.item.quantity, 0)
   const txCount = new Set(done.map((l) => l.tx.id)).size
   const avg = txCount ? roundMoney(revenue / txCount) : 0
@@ -224,6 +234,8 @@ export default function Dashboard() {
     subtitle: 'Completed sales within the selected filters',
     summary: [
       ['Total revenue', formatPeso(revenue)],
+      ['Cash sales', formatPeso(roundMoney(paymentRevenue.cash))],
+      ['GCash sales', formatPeso(roundMoney(paymentRevenue.gcash))],
       ['Completed transactions', String(txCount)],
       ['Items sold', String(itemsSold)],
       ['Average transaction', formatPeso(avg)],
@@ -274,10 +286,21 @@ export default function Dashboard() {
           <option value="cancelled">Cancelled</option>
           <option value="all">All statuses</option>
         </select>
+        <select
+          className={`${inputCls} w-auto`}
+          value={paymentMethod}
+          onChange={(e) => setPaymentMethod(e.target.value as typeof paymentMethod)}
+        >
+          <option value="all">All payment methods</option>
+          <option value="cash">Cash</option>
+          <option value="gcash">GCash</option>
+        </select>
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi label="Total revenue" value={formatPeso(revenue)} hint="Completed sales only" />
+        <Kpi label="Cash sales" value={formatPeso(roundMoney(paymentRevenue.cash))} />
+        <Kpi label="GCash sales" value={formatPeso(roundMoney(paymentRevenue.gcash))} />
         <Kpi label="Completed transactions" value={String(txCount)} />
         <Kpi label="Items sold" value={String(itemsSold)} />
         <Kpi label="Average transaction" value={formatPeso(avg)} />

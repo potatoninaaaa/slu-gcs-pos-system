@@ -6,6 +6,7 @@ import type {
   InventoryMovement,
   LocalTransaction,
   OutboxItem,
+  PaymentMethod,
   SaleItem,
 } from '../types'
 import { cacheBrandingImages, cacheProductImages } from './images'
@@ -42,6 +43,8 @@ interface TxRow {
   cashier_id: string | null
   status: 'completed' | 'cancelled'
   total_amount: number | string
+  payment_method: PaymentMethod
+  payment_reference: string | null
   cash_received: number | string
   change_given: number | string
   created_at: string
@@ -108,6 +111,8 @@ async function pullHistory() {
         cashier_id: t.cashier_id,
         status: t.status,
         total_amount: Number(t.total_amount),
+        payment_method: t.payment_method,
+        payment_reference: t.payment_reference,
         cash_received: Number(t.cash_received),
         change_given: Number(t.change_given),
         created_at: t.created_at,
@@ -192,6 +197,8 @@ async function pushItem(item: OutboxItem): Promise<void> {
         p_receipt_no: t.receipt_no,
         p_created_at: t.created_at,
         p_status: t.status,
+        p_payment_method: t.payment_method,
+        p_payment_reference: t.payment_reference,
         p_cash_received: t.cash_received,
         p_items: t.items.map((i) => ({
           product_id: i.product_id,

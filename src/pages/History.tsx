@@ -48,6 +48,7 @@ export default function History() {
   const [date, setDate] = useState<DateFilterValue>(defaultDateFilter)
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<'all' | 'completed' | 'cancelled'>('all')
+  const [paymentMethod, setPaymentMethod] = useState<'all' | 'cash' | 'gcash'>('all')
   const [sync, setSync] = useState<'all' | 'synced' | 'pending' | 'error'>('all')
   const [sort, setSort] = useState<Sort>('newest')
   const [limit, setLimit] = useState(100)
@@ -61,6 +62,7 @@ export default function History() {
       (t) =>
         inRange(t.created_at, range) &&
         (status === 'all' || t.status === status) &&
+        (paymentMethod === 'all' || t.payment_method === paymentMethod) &&
         (sync === 'all' || t.sync_status === sync) &&
         (!q ||
           t.receipt_no.toLowerCase().includes(q) ||
@@ -74,22 +76,34 @@ export default function History() {
       return a.total_amount - b.total_amount
     })
     return list
-  }, [txs, date, search, status, sync, sort])
+  }, [txs, date, search, status, paymentMethod, sync, sort])
 
   const completed = rows.filter((t) => t.status === 'completed')
   const revenue = completed.reduce((s, t) => s + t.total_amount, 0)
+  const cashRevenue = completed
+    .filter((t) => t.payment_method === 'cash')
+    .reduce((s, t) => s + t.total_amount, 0)
+  const gcashRevenue = completed
+    .filter((t) => t.payment_method === 'gcash')
+    .reduce((s, t) => s + t.total_amount, 0)
   const stamp = manilaDayKey(new Date().toISOString())
 
   const transactionsDoc = (): TableDoc => ({
     title: 'Transaction history',
     subtitle: `${rows.length} transactions, ${completed.length} completed`,
-    summary: [['Total revenue (completed sales)', formatPeso(revenue)]],
+    summary: [
+      ['Total revenue (completed sales)', formatPeso(revenue)],
+      ['Cash sales', formatPeso(cashRevenue)],
+      ['GCash sales', formatPeso(gcashRevenue)],
+    ],
     fileBase: `transactions-${stamp}`,
     columns: [
       { header: 'Receipt no', width: 22 },
       { header: 'Date and time (Manila)', width: 24 },
       { header: 'Cashier', width: 22 },
       { header: 'Status', width: 12 },
+      { header: 'Payment method', width: 16 },
+      { header: 'GCash reference', width: 24 },
       { header: 'Items', kind: 'int', width: 8 },
       { header: 'Total', kind: 'money', width: 14 },
       { header: 'Cash received', kind: 'money', width: 14 },
@@ -102,6 +116,8 @@ export default function History() {
       formatDateTime(t.created_at),
       nameOf(t.cashier_id),
       t.status === 'completed' ? 'Completed' : 'Cancelled',
+      t.payment_method === 'gcash' ? 'GCash' : 'Cash',
+      t.payment_reference,
       t.items.reduce((s, i) => s + i.quantity, 0),
       t.total_amount,
       t.cash_received,
@@ -169,6 +185,15 @@ export default function History() {
           <option value="completed">Completed</option>
           <option value="cancelled">Cancelled</option>
         </select>
+        <select
+          className={`${inputCls} w-auto`}
+          value={paymentMethod}
+          onChange={(e) => setPaymentMethod(e.target.value as typeof paymentMethod)}
+        >
+          <option value="all">All payment methods</option>
+          <option value="cash">Cash</option>
+          <option value="gcash">GCash</option>
+        </select>
         <select className={`${inputCls} w-auto`} value={sync} onChange={(e) => setSync(e.target.value as typeof sync)}>
           <option value="all">All sync states</option>
           <option value="synced">Synced</option>
@@ -187,12 +212,13 @@ export default function History() {
         <p className="rounded-xl bg-slate-800 p-6 text-center text-slate-400">No transactions match.</p>
       ) : (
         <div className="overflow-x-auto rounded-xl bg-slate-800 p-3">
-          <table className="w-full min-w-[760px] text-left text-sm">
+          <table className="w-full min-w-[900px] text-left text-sm">
             <thead className="text-slate-400">
               <tr>
                 <th className="py-2 pr-2">Receipt</th>
                 <th className="py-2 pr-2">Date</th>
                 <th className="py-2 pr-2">Cashier</th>
+                <th className="py-2 pr-2">Payment</th>
                 <th className="py-2 pr-2">Items</th>
                 <th className="py-2 pr-2">Total</th>
                 <th className="py-2 pr-2">Status</th>
@@ -209,6 +235,7 @@ export default function History() {
                   <td className="py-2 pr-2 font-mono text-xs">{t.receipt_no}</td>
                   <td className="py-2 pr-2">{formatDateTime(t.created_at)}</td>
                   <td className="py-2 pr-2">{nameOf(t.cashier_id)}</td>
+                  <td className="py-2 pr-2">{t.payment_method === 'gcash' ? 'GCash' : 'Cash'}</td>
                   <td className="py-2 pr-2">{t.items.reduce((s, i) => s + i.quantity, 0)}</td>
                   <td className="py-2 pr-2 font-semibold">{formatPeso(t.total_amount)}</td>
                   <td className="py-2 pr-2">
@@ -236,6 +263,8 @@ export default function History() {
             <p>Receipt: {open.receipt_no}</p>
             <p>Date: {formatDateTime(open.created_at)}</p>
             <p>Cashier: {nameOf(open.cashier_id)}</p>
+            <p>Payment method: {open.payment_method === 'gcash' ? 'GCash' : 'Cash'}</p>
+            {open.payment_reference && <p>GCash reference: {open.payment_reference}</p>}
             <p className="flex items-center gap-2">
               <StatusTag s={open.status} /> <SyncTag s={open.sync_status} />
             </p>
@@ -256,14 +285,18 @@ export default function History() {
             <span>Total</span>
             <span className="text-gold">{formatPeso(open.total_amount)}</span>
           </p>
-          <p className="flex justify-between text-sm text-slate-300">
-            <span>Cash received</span>
-            <span>{formatPeso(open.cash_received)}</span>
-          </p>
-          <p className="flex justify-between text-sm text-slate-300">
-            <span>Change</span>
-            <span>{formatPeso(open.change_given)}</span>
-          </p>
+          {open.payment_method === 'cash' && (
+            <>
+              <p className="flex justify-between text-sm text-slate-300">
+                <span>Cash received</span>
+                <span>{formatPeso(open.cash_received)}</span>
+              </p>
+              <p className="flex justify-between text-sm text-slate-300">
+                <span>Change</span>
+                <span>{formatPeso(open.change_given)}</span>
+              </p>
+            </>
+          )}
           <button
             onClick={() => setReceipt(open)}
             className="mt-4 w-full rounded-lg bg-gold py-2.5 font-bold text-slate-deep"

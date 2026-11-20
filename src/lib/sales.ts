@@ -1,5 +1,5 @@
 import { db } from '../db/db'
-import type { LocalTransaction, SaleItem } from '../types'
+import type { LocalTransaction, PaymentMethod, SaleItem } from '../types'
 import { newId, newReceiptNo } from './id'
 import { roundMoney } from './money'
 
@@ -15,8 +15,10 @@ export class SaleError extends Error {}
 export async function recordSale(
   lines: CartLine[],
   status: 'completed' | 'cancelled',
+  paymentMethod: PaymentMethod,
   cashReceived: number,
   cashierId: string | null,
+  paymentReference: string | null = null,
 ): Promise<LocalTransaction> {
   if (lines.length === 0) throw new SaleError('The cart is empty.')
 
@@ -55,8 +57,11 @@ export async function recordSale(
 
     const total = roundMoney(items.reduce((sum, i) => sum + i.line_total, 0))
 
-    if (status === 'completed' && cashReceived < total) {
+    if (status === 'completed' && paymentMethod === 'cash' && cashReceived < total) {
       throw new SaleError('Cash received is less than the total.')
+    }
+    if (status === 'completed' && paymentMethod === 'gcash' && cashReceived !== 0) {
+      throw new SaleError('GCash sales must not include cash received.')
     }
 
     // Deduct stock locally right away (completed sales only)
@@ -73,8 +78,11 @@ export async function recordSale(
       cashier_id: cashierId,
       status,
       total_amount: total,
-      cash_received: status === 'completed' ? cashReceived : 0,
-      change_given: status === 'completed' ? roundMoney(cashReceived - total) : 0,
+      payment_method: status === 'completed' ? paymentMethod : 'cash',
+      payment_reference: status === 'completed' && paymentMethod === 'gcash' ? paymentReference : null,
+      cash_received: status === 'completed' && paymentMethod === 'cash' ? cashReceived : 0,
+      change_given:
+        status === 'completed' && paymentMethod === 'cash' ? roundMoney(cashReceived - total) : 0,
       created_at: createdAt,
       items,
       sync_status: 'pending',

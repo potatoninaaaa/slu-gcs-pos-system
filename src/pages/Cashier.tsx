@@ -8,7 +8,7 @@ import { formatPeso } from '../lib/format'
 import { roundMoney } from '../lib/money'
 import { recordSale, SaleError } from '../lib/sales'
 import { syncNow } from '../sync/engine'
-import type { LocalTransaction, Product } from '../types'
+import type { LocalTransaction, PaymentMethod, Product } from '../types'
 
 function stockBadge(p: Product, left: number) {
   if (!p.is_available) return { text: 'Unavailable', cls: 'bg-slate-600 text-slate-200' }
@@ -30,6 +30,9 @@ export default function Cashier() {
   const [search, setSearch] = useState('')
   const [categoryId, setCategoryId] = useState('all')
   const [cart, setCart] = useState<Record<string, number>>({})
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
+  const [paymentReference, setPaymentReference] = useState('')
+  const [gcashConfirmed, setGcashConfirmed] = useState(false)
   const [cash, setCash] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -60,7 +63,10 @@ export default function Cashier() {
   const cashNum = cash === '' ? 0 : Number(cash)
   const shortBy = roundMoney(total - cashNum)
   const change = roundMoney(cashNum - total)
-  const canPay = lines.length > 0 && cashNum >= total && !busy
+  const canPay =
+    lines.length > 0 &&
+    (paymentMethod === 'cash' ? cashNum >= total : gcashConfirmed) &&
+    !busy
 
   const setQty = (p: Product, qty: number) => {
     setError(null)
@@ -85,6 +91,9 @@ export default function Cashier() {
 
   const reset = () => {
     setCart({})
+    setPaymentMethod('cash')
+    setPaymentReference('')
+    setGcashConfirmed(false)
     setCash('')
     setError(null)
   }
@@ -96,8 +105,10 @@ export default function Cashier() {
       const tx = await recordSale(
         lines.map((l) => ({ product_id: l.product.id, quantity: l.quantity })),
         'completed',
-        cashNum,
+        paymentMethod,
+        paymentMethod === 'cash' ? cashNum : 0,
         session?.user.id ?? null,
+        paymentReference.trim() || null,
       )
       reset()
       setReceipt(tx)
@@ -117,6 +128,7 @@ export default function Cashier() {
       await recordSale(
         lines.map((l) => ({ product_id: l.product.id, quantity: l.quantity })),
         'cancelled',
+        'cash',
         0,
         session?.user.id ?? null,
       )
@@ -258,37 +270,82 @@ export default function Cashier() {
           </p>
         </div>
 
-        <label className="mt-3 block text-sm text-slate-300" htmlFor="cash">
-          Cash received
+        <label className="mt-3 block text-sm text-slate-300" htmlFor="payment-method">
+          Payment method
         </label>
-        <input
-          id="cash"
-          inputMode="decimal"
-          value={cash}
-          onChange={(e) => setCash(e.target.value.replace(/[^0-9.]/g, ''))}
-          placeholder="0.00"
-          className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-lg text-white outline-none focus:border-gold"
-        />
-        <div className="mt-2 flex flex-wrap gap-2">
-          <button
-            onClick={() => setCash(String(total))}
-            disabled={total === 0}
-            className="rounded-lg bg-slate-700 px-3 py-1 text-sm hover:bg-slate-600 disabled:opacity-40"
-          >
-            Exact
-          </button>
-          {quick.map((v) => (
-            <button
-              key={v}
-              onClick={() => setCash(String(v))}
-              className="rounded-lg bg-slate-700 px-3 py-1 text-sm hover:bg-slate-600"
-            >
-              {formatPeso(v)}
-            </button>
-          ))}
-        </div>
+        <select
+          id="payment-method"
+          value={paymentMethod}
+          onChange={(e) => {
+            setPaymentMethod(e.target.value as PaymentMethod)
+            setGcashConfirmed(false)
+          }}
+          className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white outline-none focus:border-gold"
+        >
+          <option value="cash">Cash</option>
+          <option value="gcash">GCash</option>
+        </select>
 
-        {lines.length > 0 && (
+        {paymentMethod === 'cash' ? (
+          <>
+            <label className="mt-3 block text-sm text-slate-300" htmlFor="cash">
+              Cash received
+            </label>
+            <input
+              id="cash"
+              inputMode="decimal"
+              value={cash}
+              onChange={(e) => setCash(e.target.value.replace(/[^0-9.]/g, ''))}
+              placeholder="0.00"
+              className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-lg text-white outline-none focus:border-gold"
+            />
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button
+                onClick={() => setCash(String(total))}
+                disabled={total === 0}
+                className="rounded-lg bg-slate-700 px-3 py-1 text-sm hover:bg-slate-600 disabled:opacity-40"
+              >
+                Exact
+              </button>
+              {quick.map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setCash(String(v))}
+                  className="rounded-lg bg-slate-700 px-3 py-1 text-sm hover:bg-slate-600"
+                >
+                  {formatPeso(v)}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="mt-3 space-y-3">
+            <p className="rounded-lg bg-amber-900/40 px-3 py-2 text-sm text-amber-200">
+              Confirm the payment in the GCash app before completing this sale. This POS does not
+              verify GCash payments automatically.
+            </p>
+            <label className="block text-sm text-slate-300" htmlFor="payment-reference">
+              GCash reference number (optional)
+            </label>
+            <input
+              id="payment-reference"
+              value={paymentReference}
+              onChange={(e) => setPaymentReference(e.target.value)}
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white outline-none focus:border-gold"
+            />
+            <label className="flex items-start gap-2 text-sm text-slate-300">
+              <input
+                type="checkbox"
+                checked={gcashConfirmed}
+                onChange={(e) => setGcashConfirmed(e.target.checked)}
+                className="mt-1 accent-amber-400"
+              />
+              I confirmed the GCash payment was received.
+            </label>
+          </div>
+        )}
+
+        {lines.length > 0 && paymentMethod === 'cash' && (
           <p
             className={`mt-3 rounded-lg px-3 py-2 text-center font-semibold ${
               cashNum >= total ? 'bg-emerald-900/60 text-emerald-300' : 'bg-red-900/50 text-red-300'
@@ -297,6 +354,11 @@ export default function Cashier() {
             {cashNum >= total
               ? `Change: ${formatPeso(change)}`
               : `Insufficient: short by ${formatPeso(shortBy)}`}
+          </p>
+        )}
+        {lines.length > 0 && paymentMethod === 'gcash' && (
+          <p className="mt-3 rounded-lg bg-emerald-900/60 px-3 py-2 text-center font-semibold text-emerald-300">
+            GCash payment due: {formatPeso(total)} · Change: {formatPeso(0)}
           </p>
         )}
 
@@ -309,7 +371,7 @@ export default function Cashier() {
           disabled={!canPay}
           className="mt-3 w-full rounded-lg bg-gold py-3 text-lg font-bold text-slate-deep transition enabled:hover:brightness-110 disabled:opacity-40"
         >
-          {busy ? 'Saving...' : 'Complete sale'}
+          {busy ? 'Saving...' : paymentMethod === 'gcash' ? 'Confirm GCash sale' : 'Complete sale'}
         </button>
         <button
           onClick={cancel}

@@ -42,6 +42,7 @@ export interface SaleItem {
 }
 
 export type SyncStatus = 'pending' | 'synced' | 'error'
+export type PaymentMethod = 'cash' | 'gcash'
 
 export interface LocalTransaction {
   id: string
@@ -49,6 +50,8 @@ export interface LocalTransaction {
   cashier_id: string | null
   status: 'completed' | 'cancelled'
   total_amount: number
+  payment_method: PaymentMethod
+  payment_reference: string | null
   cash_received: number
   change_given: number
   created_at: string

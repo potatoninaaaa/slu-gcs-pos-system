@@ -44,13 +44,28 @@ export default function Receipt({ tx, onClose, closeLabel = 'New sale' }: Props)
             <span>{formatPeso(tx.total_amount)}</span>
           </p>
           <p className="flex justify-between">
-            <span>Cash</span>
-            <span>{formatPeso(tx.cash_received)}</span>
+            <span>Payment method</span>
+            <span>{tx.payment_method === 'gcash' ? 'GCash' : 'Cash'}</span>
           </p>
-          <p className="flex justify-between">
-            <span>Change</span>
-            <span>{formatPeso(tx.change_given)}</span>
-          </p>
+          {tx.payment_method === 'gcash' ? (
+            tx.payment_reference && (
+              <p className="flex justify-between">
+                <span>GCash reference</span>
+                <span>{tx.payment_reference}</span>
+              </p>
+            )
+          ) : (
+            <>
+              <p className="flex justify-between">
+                <span>Cash received</span>
+                <span>{formatPeso(tx.cash_received)}</span>
+              </p>
+              <p className="flex justify-between">
+                <span>Change</span>
+                <span>{formatPeso(tx.change_given)}</span>
+              </p>
+            </>
+          )}
           <div className="my-2 border-t border-dashed border-slate-400" />
           <p className="text-center">{org.receipt_footer || 'Thank you for supporting GCS!'}</p>
         </div>

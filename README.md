@@ -19,6 +19,7 @@ server ignores a sale it already has, so nothing is duplicated or lost.
 2. Open SQL Editor and run, in order:
    - `supabase/migrations/20261115000000_initial_schema.sql`
    - `supabase/migrations/20261116000000_restore_backup.sql`
+   - `supabase/migrations/20261120000000_add_payment_methods.sql`
 3. Authentication, Sign In / Providers: keep Email on, turn off "Allow new users to sign up" and
    "Confirm email".
 4. Authentication, Users, Add user: create the admin and cashier accounts (tick Auto Confirm User).
@@ -100,7 +101,7 @@ Install it, open it from the home screen icon, and sign in once while online.
   University Week day and keep it in Google Drive. Photos and logos stay in Supabase Storage.
 - Restore: Settings, Backup and restore, choose the file, Restore. It adds anything missing and
   never overwrites or duplicates existing records, so restoring twice is safe.
-- Rebuilding in a new Supabase project: run both migration files, create the accounts, make the
+- Rebuilding in a new Supabase project: run all migration files, create the accounts, make the
   admin, sign in, then restore the JSON. Re-upload product photos and logos if the old storage is gone.
 - Excel and PDF exports are in History, Activity, Dashboard, and Settings.
 
